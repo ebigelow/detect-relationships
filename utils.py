@@ -1,6 +1,7 @@
 from numpy import floor, ceil
 from cv2 import resize
-import gensim.models as gm
+import pickle
+
 
 # ---------------------------------------------------------------------------------------------------------
 # Image processing
@@ -134,9 +135,156 @@ def make_w2v_dict(word_list):
     return w2v_dict
 
 
-def make_w2v(word_list, w2v_bin='../data/GoogleNews-vectors-negative300.bin'):
+def make_w2v(word_list, w2v_bin='data/GoogleNews-vectors-negative300.bin'):
     # Build matrix of w2v vectors
+    import gensim.models as gm
     M = gm.Word2Vec.load_word2vec_format(w2v_bin, binary=True)
     w2v = [M[word] for word in word_list['obj'] + word_list['rel']]
     return np.vstack(w2v)
+
+
+
+# ---------------------------------------------------------------------------------------------------------
+# Other
+
+
+
+
+def prune_scenes(scene_graphs, rword_fname='data/pk/rel_words.pk', 
+                 ofilter_fname='data/pk/obj_counts.pk', rfilter_fname='data/pk/rel_counts.pk'):
+    rel_words = pickle.load(open(rword_fname,'r'))
+    obj_filter = pickle.load(open(ofilter_fname,'r'))
+    rel_filter = pickle.load(open(rfilter_fname,'r'))
+
+    # rename = lambda w, d: d[w] if w in d else w.lower().strip().replace(' ','_')
+    fix = lambda s: s.lower().strip().replace(' ','_')
+    rename = lambda w, d: d[fix(w)] if fix(w) in d else fix(w)
+
+    for sg in scene_graphs:
+        for r in sg.relationships:
+            s = rename(r.subject.names[0], [])
+            v = rename(r.predicate, rel_words)
+            o = rename(r.object.names[0],  [])
+            if (s not in obj_filter) or (v not in rel_filter) or (o not in obj_filter):
+                sg.relationships.remove(r)
+            else:
+                r.subject.names[0] = s
+                r.predicate        = v
+                r.object.names[0]  = o
+
+        for o in sg.objects:
+            o_ = rename(o.names[0], [])
+            if o_ not in obj_filter:
+                sg.objects.remove(o)
+            else:
+                o.names[0] = o_
+
+        if len(sg.objects) == 0 or len(sg.relationships) == 0:
+            scene_graphs.remove(sg)
+            del sg
+
+    import gc
+    gc.collect()
+
+    return scene_graphs
+
+
+def prune_scenes(scene_graphs, rword_fname='data/pk/rel_words.pk', 
+                 ofilter_fname='data/pk/obj_counts.pk', rfilter_fname='data/pk/rel_counts.pk'):
+    rel_words = pickle.load(open(rword_fname,'r'))
+    obj_filter = pickle.load(open(ofilter_fname,'r'))
+    rel_filter = pickle.load(open(rfilter_fname,'r'))
+
+    fix = lambda s: s.lower().strip().replace(' ','_')
+    rename = lambda w, d: d[fix(w)] if fix(w) in d else fix(w)
+
+    scene_graphs_ = []
+    for i, sg in enumerate(scene_graphs):
+        for j, r in enumerate(sg.relationships):
+            s = rename(r.subject.names[0], [])
+            v = rename(r.predicate, rel_words)
+            o = rename(r.object.names[0],  [])
+            if (s not in obj_filter) or (v not in rel_filter) or (o not in obj_filter):
+                sg.relationships[j] = None
+            else:
+                sg.relationships[j].subject.names[0] = s
+                sg.relationships[j].predicate        = v
+                sg.relationships[j].object.names[0]  = o
+        sg.relationships = [r for r in sg.relationships if r is not None]
+
+        for j, o in enumerate(sg.objects):
+            o_ = rename(o.names[0], [])
+            if o_ not in obj_filter:
+                sg.objects[j] = None
+            else:
+                sg.objects[j].names[0] = o_
+        sg.objects = [o for o in sg.objects if o is not None]
+
+        if len(sg.objects) == 0 or len(sg.relationships) == 0:
+            # scene_graphs.remove(sg)
+            # del sg
+            continue
+        else:
+            # scene_graphs[i] = sg
+            scene_graphs_.append(sg)
+
+    import gc
+    gc.collect()
+
+    return scene_graphs_
+
+
+
+def prune_scene(sg, rel_words, obj_filter, rel_filter):
+    fix = lambda s: s.lower().strip().replace(' ','_')
+    rename = lambda w, d: d[fix(w)] if fix(w) in d else fix(w)
+
+    for j, r in enumerate(sg.relationships):
+        s = rename(r.subject.names[0], [])
+        v = rename(r.predicate, rel_words)
+        o = rename(r.object.names[0],  [])
+        if (s not in obj_filter) or (v not in rel_filter) or (o not in obj_filter):
+            sg.relationships[j] = None
+        else:
+            sg.relationships[j].subject.names[0] = s
+            sg.relationships[j].predicate        = v
+            sg.relationships[j].object.names[0]  = o
+    sg.relationships = [r for r in sg.relationships if r is not None]
+
+    for j, o in enumerate(sg.objects):
+        o_ = rename(o.names[0], [])
+        if o_ not in obj_filter:
+            sg.objects[j] = None
+        else:
+            sg.objects[j].names[0] = o_
+    sg.objects = [o for o in sg.objects if o is not None]
+
+    if len(sg.objects) == 0 or len(sg.relationships) == 0:
+        del sg
+        return []
+    else:
+        return [sg]
+
+
+
+            
+# oc = sum(len(sg.objects) for sg in scene_graphs)
+# rc = sum(len(sg.relationships) for sg in scene_graphs)
+# print oc, rc
+
+# # PRUNED OBJECTS
+# In [29]: 998782 / 3319187.
+# Out[29]: 0.30091163890434613
+
+# # PRUNED RELATIONSHIPS
+# In [30]: 848001 / 2032830.
+# Out[30]: 0.4171529345788876
+
+# 2320405 -> 1753128
+
+# 1184829 -> 517156
+
+
+
+    
 

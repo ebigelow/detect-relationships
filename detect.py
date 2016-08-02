@@ -83,7 +83,8 @@ class ConvNets:
         return prob, graph, images_var
 
 
-    def train_cnn(self, cnn_dir, data, ckpt_file='model.ckpt', init_weights=None):
+    def train_cnn(self, cnn_dir, data, 
+                  new_layer=None, ckpt_file='model.ckpt', init_weights=None):
         """
         TODO
         ----
@@ -91,10 +92,9 @@ class ConvNets:
         - arg for descent rate?
         - data: imgs paired with labels, by batch
         - prob.shape for ground_truth
-        - `new_layer=100` . . .
 
         """
-        prob, graph, images_var = self.load_cnn(cnn_dir, new_layer=100)
+        prob, graph, images_var = self.load_cnn(cnn_dir, new_layer=new_layer, train=True)
         ground_truth = tf.placeholder(tf.float32, shape=[batch_size, prob.shape[0]])
 
         cost = tf.nn.sigmoid_cross_entropy_with_logits(prob, ground_truth)
@@ -111,17 +111,21 @@ class ConvNets:
             if os.path.exists(ckpt_path):
                 saver.restore(sess, ckpt_path)
 
-            for i, (batch_imgs, batch_labels) in enumerate(data):
-                train_dict = {images_var:batch_imgs, ground_truth:batch_labels}
-                sess.run(train_op, feed_dict=train_dict)
+            for e1, data_epoch in enumerate(data):
+                for e2, (batch_imgs, batch_labels) in enumerate(data_epoch):
+                    train_dict = {images_var:batch_imgs, ground_truth:batch_labels}
+                    sess.run(train_op, feed_dict=train_dict)
 
-                save_path = saver.save(sess, ckpt_path)
-                print('Model saved: {}   Batch: {}'.format(save_path, i))
+                    save_path = saver.save(sess, ckpt_path)
+                    print('Model saved: {}   Batch: {}'.format(save_path, e2))
 
 
 
     def train_cnns(self, weights_path=None):
-        data = TODO
+        # TODO
+        # 1. Split data into (imgs, labels) sorted by epoch (i.e. minimizing total # images) 
+        #   [[ (batch_imgs, batch_labels) for batch in data_epoch ] for data_epoch in data ]
+        #### data = TODO 
         self.train_cnn(self.obj_dir, data, init_weights=self.obj_dir+'init_weights.npy')
         self.train_cnn(self.rel_dir, data, init_weights=self.obj_dir+'init_weights.npy')
         return None
@@ -135,45 +139,11 @@ class ConvNets:
         """
         scene_graphs = rel_coords(scene_graphs)
         r_id = lambda r: (r.subject.id, r.object.id)
-        obj_data = {(sg.image.id, o.id,    (o.x, o.y, o.width, o.height)) for sg in scene_graphs for o in sg.objects}
+        obj_data = {(sg.image.id, o.id, (o.x, o.y, o.width, o.height)) for sg in scene_graphs for o in sg.objects}
         ## TODO: this shouldn't be necessary, right..?
-        obj_data.update({(sg.image.id, o.id,    (o.x, o.y, o.width, o.height)) for sg in scene_graphs for r in sg.relationships for o in (r.subject, r.object)})
+        obj_data.update({(sg.image.id, o.id, (o.x, o.y, o.width, o.height)) for sg in scene_graphs for r in sg.relationships for o in (r.subject, r.object)})
         rel_data = {(sg.image.id, r_id(r), (r.x, r.y, r.width, r.height)) for sg in scene_graphs for r in sg.relationships}
         return list(obj_data), list(rel_data)
-
-    def prune_scenes(self, scene_graphs):
-verbs = [r.predicate for sg in scene_graphs for r in sg.relationships]
-nouns = [o.names[0] for sg in scene_graphs for o in sg.objects] + \
-        [r.subject.names[0] for sg in scene_graphs for r in sg.relationships] + \
-        [r.object.names[0]  for sg in scene_graphs for r in sg.relationships]
-
-
-def fix_strings(ls):
-    return [s.lower().strip().replace('  ', ' ').replace('   ', ' ') for s in ls]
-
-verbs = fix_strings(verbs)
-nouns = fix_strings(nouns)
-
-vs = set(verbs)
-ns = set(nouns)
-
-
-vc = {v:verbs.count(v) for v in vs}
-nc = {n:nouns.count(n) for n in ns}
-
-
-
-
-def largest_word(s):
-    ls = s.split(' ')
-    return sorted(ls, key=lambda x: len(x))[-1]
-
-v2 = set(largest_word(v) for v in verbs)
-
-
-
-        for sg in scene_graphs:
-            for o in sg.objects:
 
 
 
@@ -190,12 +160,18 @@ v2 = set(largest_word(v) for v in verbs)
         if not batch: 
             batch_data = [batch_data]
 
+        img_ids =  set(zip(*batch_data)[0])
+        imgs = {img_id:imread(self.img_path + str(img_id) + '.jpg') for img_id in img_ids}
+
         crops = []
         for img_id, uid, coord in batch_data:
-            img = imread(self.img_path + str(img_id) + '.jpg')
+            img = imgs[img_id]
             crop = square_crop(img, self.crop_size, *coord)
 ####            new_img -= np.load(self.obj_dir + 'mean.npy')
             crops.append(crop)
+
+    def batchify_data(self, data):
+        #### data = TODO_SPLIT_BY self.batch_size
 
         pad_len = self.batch_size - len(batch_data)
         if batch and (pad_len > 0):
@@ -218,7 +194,7 @@ v2 = set(largest_word(v) for v in verbs)
         return obj_dict, rel_dict
 
 
-    def run_cnn(self, data, cnn_dir, layer, ckpt_file='model.ckpt'):
+    def run_cnn(self, data, cnn_dir, layer, ckpt_file='model.ckpt', new_layer=100):
         """
         TODO: update line: `new_layer=100` 
         
