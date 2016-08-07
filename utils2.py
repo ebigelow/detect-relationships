@@ -1,6 +1,7 @@
 import numpy as np
 import scipy.io as spio
 from utils import square_crop
+from cv2 import imread
 
 def loadmat(filename):
     '''
@@ -48,7 +49,7 @@ def get_data(mat_data, obj_dict, rel_dict):
     rel_data = []
 
     for datum in mat_data:
-        img = cv2.imread(datum.filename)
+        img = imread(datum.filename)
         img_rels = datum.relationship
 
         for rel in img_rels:
@@ -60,9 +61,9 @@ def get_data(mat_data, obj_dict, rel_dict):
             h2, w2 = (ymax2 - ymin2, xmax2 - xmin2)
             h3, w3 = (ymax3 - ymin3, xmax3 - xmin3)
 
-            img1 = square_crop(img, 226, x1, y1, w1, h1)
-            img2 = square_crop(img, 226, x2, y2, w2, h2)
-            img3 = square_crop(img, 226, x3, y3, w3, h3)
+            img1 = square_crop(img, 226, xmin1, ymin1, w1, h1)
+            img2 = square_crop(img, 226, xmin2, ymin2, w2, h2)
+            img3 = square_crop(img, 226, xmin3, ymin3, w3, h3)
 
             s,v,o = rel.phrase
             obj_data.append(img1, obj_dict[s])
