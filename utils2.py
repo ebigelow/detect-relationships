@@ -44,12 +44,12 @@ def _todict(matobj):
 
 
 
-def get_data(mat_data, obj_dict, rel_dict):
+def get_data(mat_data, obj_dict, rel_dict, img_dir):
     obj_data = []
     rel_data = []
 
     for datum in mat_data:
-        img = imread(datum.filename)
+        img = imread(img_dir + datum.filename)
         img_rels = datum.relationship
 
         for rel in img_rels:
