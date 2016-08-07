@@ -199,7 +199,7 @@ class ConvNets:
         TODO: update line: `new_layer=100` 
         
         """
-        prob, graph, images_var = self.load_cnn(cnn_dir, new_layer=100)
+        prob, graph, images_var = self.load_cnn(cnn_dir, new_layer=new_layer)
         # epochs = int(np.ceil(float(len(data)) / self.batch_size))
         graph_layer = prob if layer == 'prob' else graph.get_tensor_by_name(layer)
 
@@ -230,7 +230,7 @@ class ConvNets:
         obj_data, rel_data = self.parse_scenes(scene_graphs)
         obj_dict, rel_dict = self.get_dicts(obj_data, rel_data)
 
-        obj_probs = self.run_cnn(obj_data, self.obj_dir, 'prob', self.obj_ckpt)
+        obj_probs = self.run_cnn(obj_data, self.obj_dir, 'prob', ckpt_file=self.obj_ckpt)
         rel_feats = self.run_cnn(rel_data, self.rel_dir, 'fc7/fc7:0', self.rel_ckpt)
 
         return obj_probs, rel_feats, obj_dict, rel_dict

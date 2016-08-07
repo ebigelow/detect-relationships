@@ -3,7 +3,8 @@ import numpy as np
 from detect import ConvNets, Model
 from utils import make_word_list, make_w2v, make_w2v_dict
 
-sys.path.append('/Users/eric/code/visual_genome_python_driver')
+# sys.path.append('/Users/eric/code/visual_genome_python_driver')
+sys.path.append('/localdisk/ebigelow/lib/visual_genome_python_driver')
 import src.local as vg
 
 
