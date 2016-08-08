@@ -1,7 +1,8 @@
 import numpy as np
 import scipy.io as spio
 from utils import square_crop
-from cv2 import imread
+from skimage.io import imread
+from cv2 import cvtColor, COLOR_RGB2BGR
 
 def loadmat(filename):
     '''
@@ -49,9 +50,17 @@ def get_data(mat_data, obj_dict, rel_dict, img_dir):
     rel_data = []
 
     for datum in mat_data:
-        img = imread(img_dir + datum.filename)
+        if not hasattr(datum, 'relationship'):
+            continue
         img_rels = datum.relationship
-
+        if not hasattr(img_rels, '__getitem__'): 
+            print datum.filename
+            print [_ for _ in dir(img_rels) if '_' not in _]
+            img_rels = [img_rels]
+            continue
+        img = imread(img_dir + datum.filename)     
+        img = cvtColor(img, COLOR_RGB2BGR)
+        # print datum.filename; print img.shape 
         for rel in img_rels:
             ymin1, ymax1, xmin1, xmax1 = rel.subBox
             ymin2, ymax2, xmin2, xmax2 = rel.objBox
@@ -60,15 +69,15 @@ def get_data(mat_data, obj_dict, rel_dict, img_dir):
             h1, w1 = (ymax1 - ymin1, xmax1 - xmin1)
             h2, w2 = (ymax2 - ymin2, xmax2 - xmin2)
             h3, w3 = (ymax3 - ymin3, xmax3 - xmin3)
-
+    
             img1 = square_crop(img, 226, xmin1, ymin1, w1, h1)
             img2 = square_crop(img, 226, xmin2, ymin2, w2, h2)
             img3 = square_crop(img, 226, xmin3, ymin3, w3, h3)
-
+    
             s,v,o = rel.phrase
-            obj_data.append(img1, obj_dict[s])
-            obj_data.append(img2, obj_dict[o])
-            rel_data.append(img3, rel_dict[v])
+            obj_data.append((img1, obj_dict[s]))
+            obj_data.append((img2, obj_dict[o]))
+            rel_data.append((img3, rel_dict[v]))
 
     return obj_data, rel_data
 

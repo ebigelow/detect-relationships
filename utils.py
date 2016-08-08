@@ -1,5 +1,5 @@
 from numpy import floor, ceil
-from cv2 import resize
+from skimage.transform import resize
 import pickle
 
 
@@ -51,7 +51,8 @@ def square_crop(img, crop_size, x, y, w, h):
         y1 = y
         y2 = y + h
 
-    crop = img[y1:y2, x1:x2]
+    f = lambda c: int(max(c, 0))
+    crop = img[f(y1):f(y2), f(x1):f(x2)]
     new_img = resize(crop, (crop_size, crop_size))
 
     return new_img
