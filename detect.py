@@ -90,7 +90,6 @@ class ConvNets:
         ----
         - use other optimizers?
         - arg for descent rate?
-        - data: imgs paired with labels, by batch
         - prob.shape for ground_truth
 
         """
@@ -106,18 +105,18 @@ class ConvNets:
         with tf.Session() as sess:
             tf.initialize_all_variables().run()
 
-            if init_weights is not None:
-                graph.load(init_weights, sess) 
             if os.path.exists(ckpt_path):
                 saver.restore(sess, ckpt_path)
+            elif init_weights is not None:
+                graph.load(init_weights, sess) 
 
-            for e1, data_epoch in enumerate(data):
-                for e2, (batch_imgs, batch_labels) in enumerate(data_epoch):
-                    train_dict = {images_var:batch_imgs, ground_truth:batch_labels}
-                    sess.run(train_op, feed_dict=train_dict)
 
-                    save_path = saver.save(sess, ckpt_path)
-                    print('Model saved: {}   Batch: {}'.format(save_path, e2))
+            for e, (batch_imgs, batch_labels) in enumerate(data_epoch):
+                train_dict = {images_var:batch_imgs, ground_truth:batch_labels}
+                sess.run(train_op, feed_dict=train_dict)
+
+                save_path = saver.save(sess, ckpt_path)
+                print('Model saved: {}   Batch: {}'.format(save_path, e))
 
 
 
