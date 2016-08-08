@@ -70,9 +70,9 @@ def get_data(mat_data, obj_dict, rel_dict, img_dir):
             h2, w2 = (ymax2 - ymin2, xmax2 - xmin2)
             h3, w3 = (ymax3 - ymin3, xmax3 - xmin3)
     
-            img1 = square_crop(img, 226, xmin1, ymin1, w1, h1)
-            img2 = square_crop(img, 226, xmin2, ymin2, w2, h2)
-            img3 = square_crop(img, 226, xmin3, ymin3, w3, h3)
+            img1 = square_crop(img, 224, xmin1, ymin1, w1, h1)
+            img2 = square_crop(img, 224, xmin2, ymin2, w2, h2)
+            img3 = square_crop(img, 224, xmin3, ymin3, w3, h3)
     
             s,v,o = rel.phrase
             obj_data.append((img1, obj_dict[s]))
