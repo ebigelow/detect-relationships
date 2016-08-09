@@ -3,6 +3,7 @@ import scipy.io as spio
 from utils import square_crop
 from skimage.io import imread
 from cv2 import cvtColor, COLOR_RGB2BGR
+import numpy as np
 
 def loadmat(filename):
     '''
@@ -80,6 +81,36 @@ def get_data(mat_data, obj_dict, rel_dict, img_dir):
             rel_data.append((img3, rel_dict[v]))
 
     return obj_data, rel_data
+
+
+def batchify_data(data, batch_size):
+    n = np.ceil(float(len(data)) / batch_size)
+    batched_data = []
+    for b in range(n):
+        batch_data = data[b*n : (b+1)*n]
+        batch_imgs, batch_labs = zip(*batch_data)
+        pad_len = batch_size - len(batch_data)
+        # Pad by repeating 1 image . . . probably not the best way to do this
+        if pad_len > 0:
+            batch_imgs += [batch_imgs[0] for _ in pad_len]
+            batch_labs += [batch_labs[0] for _ in pad_len]
+        new_imgs   = np.concatenate((i[np.newaxis, ...] for i in batch_imgs), axis=0)
+        new_labels = np.concatenate((i[np.newaxis, ...] for i in batch_labs), axis=0)
+        batched_data.append((new_imgs, new_labels))
+
+    return batched_data
+
+
+
+
+
+
+
+
+
+
+
+
 
 
 
