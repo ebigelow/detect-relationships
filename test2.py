@@ -18,15 +18,15 @@ a_train = loadmat('data/vrd/annotation_train.mat')['annotation_train']
 # obj_test, rel_test   = get_data(a_test,  obj_dict, rel_dict, 'images/test/')
 
 
-train_splits = 200
-s = np.ceil(float(len(a_train)) / train_splits)
+train_splits = 15
+s = np.ceil(float(len(a_train)) / train_splits).astype(int)
 for e in range(0, train_splits):
+    print '~~~~~ Meta Batch: {}, [{}:{}] ~~~~~'.format(e, e*s, (e+1)*s)
     iter_data = a_train[e*s : (e+1)*s]
     obj_data, rel_data = get_data(iter_data, obj_dict, rel_dict, 'data/vrd/images/train/')
     obj_data, rel_data = (batchify_data(obj_data, 10), batchify_data(rel_data, 10))
-    conv.train_cnn('data/model/objnet/', obj_data, new_layer=100, ckpt_file='trained.ckpt', init_weights='data/models/objnet/vgg16.npy'
-    conv.train_cnn('data/model/relnet/', rel_data, new_layer=70,  ckpt_file='trained.ckpt', init_weights='data/models/relnet/vgg16.npy')
-    print '~~~~~ Meta Batch: {} ~~~~~'.format(e)
+    conv.train_cnn('data/models/objnet/', obj_data, new_layer=100, ckpt_file='trained.ckpt', init_weights='data/models/objnet/vgg16.npy')
+    conv.train_cnn('data/models/relnet/', rel_data, new_layer=70,  ckpt_file='trained.ckpt', init_weights='data/models/relnet/vgg16.npy')
 
 
 

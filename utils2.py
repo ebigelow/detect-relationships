@@ -55,10 +55,11 @@ def get_data(mat_data, obj_dict, rel_dict, img_dir):
             continue
         img_rels = datum.relationship
         if not hasattr(img_rels, '__getitem__'): 
-            print datum.filename
-            print [_ for _ in dir(img_rels) if '_' not in _]
+            if not all(i in dir(img_rels) for i in ['objBox', 'phrase', 'subBox']): 
+                print [_ for _ in dir(img_rels) if '_' not in _]
+                continue
             img_rels = [img_rels]
-            continue
+            
         img = imread(img_dir + datum.filename)     
         img = cvtColor(img, COLOR_RGB2BGR)
         # print datum.filename; print img.shape 
@@ -76,26 +77,30 @@ def get_data(mat_data, obj_dict, rel_dict, img_dir):
             img3 = square_crop(img, 224, xmin3, ymin3, w3, h3)
     
             s,v,o = rel.phrase
-            obj_data.append((img1, obj_dict[s]))
-            obj_data.append((img2, obj_dict[o]))
-            rel_data.append((img3, rel_dict[v]))
+            sd = np.zeros((100)); sd[obj_dict[s]] = 1
+            od = np.zeros((100)); od[obj_dict[o]] = 1
+            vd = np.zeros((70));  vd[rel_dict[v]] = 1
+            obj_data.append((img1, sd))
+            obj_data.append((img2, od))
+            rel_data.append((img3, vd))
 
     return obj_data, rel_data
 
 
 def batchify_data(data, batch_size):
-    n = np.ceil(float(len(data)) / batch_size)
+    n = np.ceil(float(len(data)) / batch_size).astype(int)
     batched_data = []
     for b in range(n):
-        batch_data = data[b*n : (b+1)*n]
+        batch_data = data[b*batch_size : (b + 1)*batch_size]
+        if len(batch_data) == 0: continue
         batch_imgs, batch_labs = zip(*batch_data)
         pad_len = batch_size - len(batch_data)
         # Pad by repeating 1 image . . . probably not the best way to do this
         if pad_len > 0:
-            batch_imgs += [batch_imgs[0] for _ in pad_len]
-            batch_labs += [batch_labs[0] for _ in pad_len]
-        new_imgs   = np.concatenate((i[np.newaxis, ...] for i in batch_imgs), axis=0)
-        new_labels = np.concatenate((i[np.newaxis, ...] for i in batch_labs), axis=0)
+            batch_imgs += tuple(batch_imgs[0] for _ in range(pad_len))
+            batch_labs += tuple(batch_labs[0] for _ in range(pad_len))
+        new_imgs   = np.concatenate([i[np.newaxis, ...] for i in batch_imgs], axis=0)
+        new_labels = np.concatenate([i[np.newaxis, ...] for i in batch_labs], axis=0)
         batched_data.append((new_imgs, new_labels))
 
     return batched_data

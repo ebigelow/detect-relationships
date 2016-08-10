@@ -98,7 +98,7 @@ class ConvNets:
         ground_truth = tf.placeholder(tf.float32, shape=[self.batch_size, prob.get_shape()[1]])
 
         cost = tf.nn.sigmoid_cross_entropy_with_logits(prob, ground_truth)
-        train_op = tf.train.GradientDescentOptimizer(0.005).minimize(cost)
+        train_op = tf.train.AdamOptimizer(0.005).minimize(cost)
 
         saver = tf.train.Saver()
         ckpt_path = os.path.join(cnn_dir, ckpt_file)
