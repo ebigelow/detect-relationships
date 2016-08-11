@@ -51,10 +51,11 @@ class ConvNets:
         self.batch_size = batch_size
         self.crop_size  = crop_size
 
-    def load_cnn(self, cnn_dir, new_layer=None, train=False):
+    def load_cnn(self, cnn_dir, new_layer=None, train=False, batch_size=10):
         tf.reset_default_graph()
 
-        batch_size, crop_size = self.batch_size, self.crop_size
+        # batch_size, crop_size = self.batch_size, self.crop_size
+        crop_size = self.crop_size
         if train:
             images_var = tf.placeholder(tf.float32, [batch_size, crop_size, crop_size, 3])
             images_batch = tf.reshape(images_var, [-1, crop_size, crop_size, 3])
@@ -194,12 +195,12 @@ class ConvNets:
         return obj_dict, rel_dict
 
 
-    def run_cnn(self, data, cnn_dir, layer, ckpt_file='model.ckpt', new_layer=100):
+    def run_cnn(self, images, cnn_dir, ckpt_file, layer='prob', new_layer=None):
         """
         TODO: update line: `new_layer=100` 
         
         """
-        prob, graph, images_var = self.load_cnn(cnn_dir, new_layer=new_layer)
+        prob, graph, images_var = self.load_cnn(cnn_dir, new_layer=new_layer, batch_size=1)
         # epochs = int(np.ceil(float(len(data)) / self.batch_size))
         graph_layer = prob if layer == 'prob' else graph.get_tensor_by_name(layer)
 
@@ -210,15 +211,21 @@ class ConvNets:
             saver.restore(sess, os.path.join(cnn_dir, ckpt_file))
 
             layer_out  = []
-            for d in data:
-                # batch_data = data[e:e+self.batch_size]
-                img = self.load_images(d, batch=False)
-
+            for img in images:
                 feed = {images_var: img}
                 batch_prob = sess.run(graph_layer, feed_dict=feed)[0]   # TODO should this be the 0th index?
                 layer_out.append(batch_prob)
 
         return np.vstack(layer_out)
+
+    def test(self, data, cnn_dir, ckpt_file='model.ckpt', new_layer=None):
+        images, labels = zip(*data)
+        output = self.run_cnn(self, images, cnn_dir, ckpt_file, new_layer=new_layer)
+
+        predictions = output.argmax(axis=1)
+        N = float(len(data))
+        accuracy = (np.array(labels) == predictions).sum() / N
+        return accuracy
 
 
 
