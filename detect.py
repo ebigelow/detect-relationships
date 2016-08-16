@@ -72,11 +72,17 @@ class ConvNets:
         if new_layer is not None:
             # http://www.cs.toronto.edu/~guerzhoy/tf_alexnet/myalexnet_forward.py
             fc7 = graph.get_tensor_by_name('fc7/fc7:0')
-            fc8W = tf.Variable(tf.random_normal([4096, new_layer], stddev=0.01))
-            ## fc8 = tf.matmul(fc7, fc8W)     
-            fc8b = tf.Variable(tf.random_normal([new_layer], stddev=0.01))
-            fc8 = tf.nn.xw_plus_b(fc7, fc8W, fc8b)
-            prob = tf.nn.softmax(fc8)
+            with tf.variable_scope('fc8_new'):
+                with tf.variable_scope('weights'):
+                    fc8W = tf.Variable(tf.random_normal([4096, new_layer], stddev=0.01))
+                #fc8W = tf.get_variable('weights', [4096, new_layer], initializer=tf.random_normal_initializer())
+                with tf.variable_scope('biases'):
+                    fc8b = tf.Variable(tf.random_normal([new_layer], stddev=0.01))
+                #fc8W = tf.get_variable('biases', [new_layer], initializer=tf.random_normal_initializer())
+                with tf.variable_scope('fc8'):
+                    fc8 = tf.nn.xw_plus_b(fc7, fc8W, fc8b)
+            with tf.variable_scope('prob'):
+                prob = tf.nn.softmax(fc8)
 
         else:
             prob = graph.get_tensor_by_name('prob')
@@ -116,9 +122,11 @@ class ConvNets:
             for e, (batch_imgs, batch_labels) in enumerate(data):
                 train_dict = {images_var:batch_imgs, ground_truth:batch_labels}
                 sess.run(train_op, feed_dict=train_dict)
-
                 save_path = saver.save(sess, ckpt_path)
-                print('Model saved: {}   Batch: {}'.format(save_path, e))
+
+                if e % 20 == 0:
+                    save_path = saver.save(sess, ckpt_path + '.' + str(e))
+                    print('Model saved: {}   Batch: {}'.format(save_path, e))
 
 
 
@@ -200,7 +208,7 @@ class ConvNets:
         TODO: update line: `new_layer=100` 
         
         """
-        prob, graph, images_var = self.load_cnn(cnn_dir, new_layer=new_layer, batch_size=1)
+        prob, graph, net, images_var = self.load_cnn(cnn_dir, new_layer=new_layer, batch_size=1)
         # epochs = int(np.ceil(float(len(data)) / self.batch_size))
         graph_layer = prob if layer == 'prob' else graph.get_tensor_by_name(layer)
 
@@ -220,11 +228,11 @@ class ConvNets:
 
     def test(self, data, cnn_dir, ckpt_file='model.ckpt', new_layer=None):
         images, labels = zip(*data)
-        output = self.run_cnn(self, images, cnn_dir, ckpt_file, new_layer=new_layer)
+        output = self.run_cnn(images, cnn_dir, ckpt_file, new_layer=new_layer)
 
         predictions = output.argmax(axis=1)
         N = float(len(data))
-        accuracy = (np.array(labels) == predictions).sum() / N
+        accuracy = sum(np.array(labels).argmax(axis=1) == predictions) / N
         return accuracy
 
 
@@ -431,7 +439,8 @@ class Model:
         W, b, Z, s = (self.W, self.b, self.Z, self.s)
 
         for i in range(self.max_iters):
-            print 'SGD iteration [{}]'.format(i)
+            if i % 20 == 0:
+                print 'SGD iteration [{}]'.format(i)
             # TODO: is it worth it to pre-compute these as tables?
             #V = {d:self.V(*d,Z,s) for d in D}
             #F = {R:f(R,W,b) for R in zip(*D)[0]}
