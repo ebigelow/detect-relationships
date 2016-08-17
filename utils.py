@@ -12,21 +12,18 @@ import inspect
 
 def square_crop(img, crop_size, x, y, w, h):
     """
-    TODO: test
+    Crop square image at (y,x) with dims (h,w), resize to crop_size.
 
     """
     ih, iw, _ = img.shape
-
     if w == h:
         x1 = x
         x2 = x + w
         y1 = y
         y2 = y + h
-
     elif w > h:
         d1 = np.floor((w - h) / 2.)
         d2 = np.ceil((w - h) / 2.)
-
         if y - d1 < 0:
             y1 = 0
             y2 = y + h + d2 - (y - d1)
@@ -38,11 +35,9 @@ def square_crop(img, crop_size, x, y, w, h):
             y2 = y + h + d2
         x1 = x
         x2 = x + w
-
     elif h > w:
         d1 = np.floor((h - w) / 2.)
         d2 = np.ceil((h - w) / 2.)
-
         if x - d1 < 0:
             x1 = 0
             x2 = x + w + d2 - (x - d1)
@@ -54,11 +49,9 @@ def square_crop(img, crop_size, x, y, w, h):
             x2 = x + w + d2
         y1 = y
         y2 = y + h
-
     f = lambda c: int(max(c, 0))
     crop = img[f(y1):f(y2), f(x1):f(x2)]
     new_img = resize(crop, (crop_size, crop_size))
-
     return new_img
 
 
@@ -147,7 +140,22 @@ def make_w2v(word_list, w2v_bin='data/GoogleNews-vectors-negative300.bin'):
 
 
 # ---------------------------------------------------------------------------------------------------------
-# Other
+# Scene graph stuff
+# -----------------
+# >> oc = sum(len(sg.objects) for sg in scene_graphs)
+# >> rc = sum(len(sg.relationships) for sg in scene_graphs)
+# >> print oc, rc
+#
+# Pruned Objects
+#   In [29]: 998782 / 3319187.
+#   Out[29]: 0.30091163890434613
+#
+# Pruned Relationships
+#   In [30]: 848001 / 2032830.
+#   Out[30]: 0.4171529345788876
+#
+# 2320405 -> 1753128
+# 1184829 -> 517156
 
 def prune_scenes(scene_graphs, rword_fname='data/pk/rel_words.pk',
                  ofilter_fname='data/pk/obj_counts.pk', rfilter_fname='data/pk/rel_counts.pk'):
@@ -263,22 +271,6 @@ def prune_scene(sg, rel_words, obj_filter, rel_filter):
     else:
         return [sg]
 
-# oc = sum(len(sg.objects) for sg in scene_graphs)
-# rc = sum(len(sg.relationships) for sg in scene_graphs)
-# print oc, rc
-
-# # PRUNED OBJECTS
-# In [29]: 998782 / 3319187.
-# Out[29]: 0.30091163890434613
-
-# # PRUNED RELATIONSHIPS
-# In [30]: 848001 / 2032830.
-# Out[30]: 0.4171529345788876
-
-# 2320405 -> 1753128
-
-# 1184829 -> 517156
-
 
 # ---------------------------------------------------------------------------------------------------------
 # Load matrix
@@ -321,6 +313,23 @@ def _todict(matobj):
 
 # ---------------------------------------------------------------------------------------------------------
 # .mat files to data
+# ------------------
+#
+# obj_dict = {r:i for i,r in enumerate(loadmat('objectListN.mat')['objectListN'])}
+# rel_dict = {r:i for i,r in enumerate(loadmat('predicate.mat')['predicate'])}
+#
+# a_test  = loadmat('annotation_test.mat')['annotation_test']
+# a_train = loadmat('annotation_train.mat')['annotation_train']
+#
+# obj_train, rel_train = get_data(a_train, obj_dict, rel_dict)
+# obj_test, rel_test = get_data(a_test, obj_dict, rel_dict)
+#
+#
+# img_name = a_test[0].filename
+# img_rels = a_test[0].relationship
+# rel = img_rels[0]
+# s,v,o = rel.phrase
+# print rel.subBox, rel.objBox
 
 def get_data(mat_data, obj_dict, rel_dict, img_dir):
     obj_data = []
@@ -348,9 +357,9 @@ def get_data(mat_data, obj_dict, rel_dict, img_dir):
             h2, w2 = (ymax2 - ymin2, xmax2 - xmin2)
             h3, w3 = (ymax3 - ymin3, xmax3 - xmin3)
 
-            img1 = square_crop(img, 224, xmin1, ymin1, w1, h1)
-            img2 = square_crop(img, 224, xmin2, ymin2, w2, h2)
-            img3 = square_crop(img, 224, xmin3, ymin3, w3, h3)
+            img1 = square_crop(img, 224, xmin1, ymin1, w1, h1) - np.load(mean_file)
+            img2 = square_crop(img, 224, xmin2, ymin2, w2, h2) - np.load(mean_file)
+            img3 = square_crop(img, 224, xmin3, ymin3, w3, h3) - np.load(mean_file)
 
             s,v,o = rel.phrase
             sd = np.zeros((100)); sd[obj_dict[s]] = 1
@@ -382,34 +391,11 @@ def batchify_data(data, batch_size):
     return batched_data
 
 
-'''
-
-obj_dict = {r:i for i,r in enumerate(loadmat('objectListN.mat')['objectListN'])}
-rel_dict = {r:i for i,r in enumerate(loadmat('predicate.mat')['predicate'])}
-
-a_test  = loadmat('annotation_test.mat')['annotation_test']
-a_train = loadmat('annotation_train.mat')['annotation_train']
-
-obj_train, rel_train = get_data(a_train, obj_dict, rel_dict)
-obj_test, rel_test = get_data(a_test, obj_dict, rel_dict)
-
-
-img_name = a_test[0].filename
-img_rels = a_test[0].relationship
-rel = img_rels[0]
-s,v,o = rel.phrase
-print rel.subBox, rel.objBox
-
-
-
-'''
-
 # ---------------------------------------------------------------------------------------------------------
 # Scene graph to data
 
 def id_(a, b):
     return str(a) + '_' + str(b)
-
 
 def parse_scenes(scene_graphs):
     """
@@ -425,34 +411,35 @@ def parse_scenes(scene_graphs):
     return list(obj_data), list(rel_data)
 
 
-def load_images(batch_data, mean_file, img_path, crop_size=224, batch=True):
-    """
-    - load and crop images, return list in same order as given
-    - if fewer images than batch size, pad batch with black frames
+# def load_images(batch_data, mean_file, img_path, crop_size=224, batch=True):
+#     """
+#     - load and crop images, return list in same order as given
+#     - if fewer images than batch size, pad batch with black frames
+#
+#     """
+#     if not batch:
+#         batch_data = [batch_data]
+#
+#     img_ids =  set(zip(*batch_data)[0])
+#     imgs = {img_id:imread(img_path + str(img_id) + '.jpg') for img_id in img_ids}
+#
+#     crops = []
+#     for img_id, uid, coord in batch_data:
+#         img = imgs[img_id]
+#         crop = square_crop(img, crop_size, *coord)
+#         # http://stackoverflow.com/questions/29743523/subtract-mean-from-image
+#         crop -= np.load(mean_file)
+#         crops.append(crop)
 
-    """
-    if not batch:
-        batch_data = [batch_data]
-
-    img_ids =  set(zip(*batch_data)[0])
-    imgs = {img_id:imread(img_path + str(img_id) + '.jpg') for img_id in img_ids}
-
-    crops = []
-    for img_id, uid, coord in batch_data:
-        img = imgs[img_id]
-        crop = square_crop(img, crop_size, *coord)
-        crop -= np.load(mean_file)
-        crops.append(crop)
-
-def get_dicts(obj_data, rel_data):
-    """
-    Create dictionaries that give indexes for CNN outputs for object & relationship UIDs.
-
-    """
-    rid = lambda ii, oi1, oi2: frozenset([id_(ii,oi1), id_(ii,oi2)])
-    obj_dict = {id_(img_id, obj_id)   : idx for idx, (img_id, obj_id, coord) in enumerate(obj_data)}
-    rel_dict = {rid(img_id, *obj_ids) : idx for idx, (img_id, obj_ids, coord) in enumerate(rel_data)}
-    return obj_dict, rel_dict
+# def get_dicts(obj_data, rel_data):
+#     """
+#     Create dictionaries that give indexes for CNN outputs for object & relationship UIDs.
+#
+#     """
+#     rid = lambda ii, oi1, oi2: frozenset([id_(ii,oi1), id_(ii,oi2)])
+#     obj_dict = {id_(img_id, obj_id)   : idx for idx, (img_id, obj_id, coord) in enumerate(obj_data)}
+#     rel_dict = {rid(img_id, *obj_ids) : idx for idx, (img_id, obj_ids, coord) in enumerate(rel_data)}
+#     return obj_dict, rel_dict
 
 # def batchify_data2(data, batch_size=10):
 #     pad_len = batch_size - len(batch_data)
