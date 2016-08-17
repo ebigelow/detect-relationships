@@ -35,15 +35,3 @@ np.save('data/w2v.npy', w2v)
 model = Model(obj_probs, rel_feats, obj_dict, rel_dict, w2v, w2v_dict, n)
 D = model.load_data(scene_graphs)
 model.SGD(D)
-
-
-
-
-
-
-
-
-
-
-
-

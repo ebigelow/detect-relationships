@@ -7,7 +7,6 @@ from cv2 import cvtColor, COLOR_RGB2BGR
 import inspect
 
 
-
 # ---------------------------------------------------------------------------------------------------------
 # Image processing
 
@@ -18,7 +17,7 @@ def square_crop(img, crop_size, x, y, w, h):
     """
     ih, iw, _ = img.shape
 
-    if w == h: 
+    if w == h:
         x1 = x
         x2 = x + w
         y1 = y
@@ -63,7 +62,6 @@ def square_crop(img, crop_size, x, y, w, h):
     return new_img
 
 
-
 def rel_coords(scene_graphs):
     for sg in scene_graphs:
         for r in sg.relationships:
@@ -78,7 +76,7 @@ def rel_coords(scene_graphs):
 
 
 # ---------------------------------------------------------------------------------------------------------
-# Word2Vec 
+# Word2Vec
 
 def fix_r(r):
     if r.predicate == 'of':
@@ -98,7 +96,6 @@ def fix_o(o):
         o.names[0] = 'skylight'
     return o
 
-
 def fix_names(scene_graphs):
     for sg in scene_graphs:
         for r in sg.relationships:
@@ -109,8 +106,8 @@ def fix_names(scene_graphs):
 
 
 def make_word_list(scene_graphs, N=26, K=12):
-    """ 
-    TODO - describe 
+    """
+    TODO - describe
 
     """
     O1 = set(r.subject.names[0] for sg in scene_graphs for r in sg.relationships)
@@ -149,14 +146,10 @@ def make_w2v(word_list, w2v_bin='data/GoogleNews-vectors-negative300.bin'):
     return np.vstack(w2v)
 
 
-
 # ---------------------------------------------------------------------------------------------------------
 # Other
 
-
-
-
-def prune_scenes(scene_graphs, rword_fname='data/pk/rel_words.pk', 
+def prune_scenes(scene_graphs, rword_fname='data/pk/rel_words.pk',
                  ofilter_fname='data/pk/obj_counts.pk', rfilter_fname='data/pk/rel_counts.pk'):
     rel_words = pickle.load(open(rword_fname,'r'))
     obj_filter = pickle.load(open(ofilter_fname,'r'))
@@ -195,7 +188,7 @@ def prune_scenes(scene_graphs, rword_fname='data/pk/rel_words.pk',
     return scene_graphs
 
 
-def prune_scenes(scene_graphs, rword_fname='data/pk/rel_words.pk', 
+def prune_scenes(scene_graphs, rword_fname='data/pk/rel_words.pk',
                  ofilter_fname='data/pk/obj_counts.pk', rfilter_fname='data/pk/rel_counts.pk'):
     rel_words = pickle.load(open(rword_fname,'r'))
     obj_filter = pickle.load(open(ofilter_fname,'r'))
@@ -240,7 +233,6 @@ def prune_scenes(scene_graphs, rword_fname='data/pk/rel_words.pk',
     return scene_graphs_
 
 
-
 def prune_scene(sg, rel_words, obj_filter, rel_filter):
     fix = lambda s: s.lower().strip().replace(' ','_')
     rename = lambda w, d: d[fix(w)] if fix(w) in d else fix(w)
@@ -271,13 +263,6 @@ def prune_scene(sg, rel_words, obj_filter, rel_filter):
     else:
         return [sg]
 
-
-
-
-
-
-
-            
 # oc = sum(len(sg.objects) for sg in scene_graphs)
 # rc = sum(len(sg.relationships) for sg in scene_graphs)
 # print oc, rc
@@ -295,8 +280,8 @@ def prune_scene(sg, rel_words, obj_filter, rel_filter):
 # 1184829 -> 517156
 
 
-
-
+# ---------------------------------------------------------------------------------------------------------
+# Load matrix
 
 def loadmat(filename):
     '''
@@ -304,7 +289,7 @@ def loadmat(filename):
     as it cures the problem of not properly recovering python dictionaries
     from mat files. It calls the function check keys to cure all entries
     which are still mat-objects
-    
+
     from: `StackOverflow <http://stackoverflow.com/questions/7008608/scipy-io-loadmat-nested-structures-i-e-dictionaries>`_
     '''
     data = spio.loadmat(filename, struct_as_record=False, squeeze_me=True)
@@ -318,7 +303,7 @@ def _check_keys(dict):
     for key in dict:
         if isinstance(dict[key], spio.matlab.mio5_params.mat_struct):
             dict[key] = _todict(dict[key])
-    return dict        
+    return dict
 
 def _todict(matobj):
     '''
@@ -334,25 +319,8 @@ def _todict(matobj):
     return dict
 
 
-
-
 # ---------------------------------------------------------------------------------------------------------
-
-
-
-# def parameterize(f, kwargs):
-#     """
-#     This lets us keep a single parameter dict kwargs that we fit to specific functions.
-
-#     """
-#     keys = inspect.getargspec(f)
-#     kwargs_ = {k:kwargs[k] for k in kwargs if k in keys}
-#     return lambda params: f(*params, **kwargs_)
-
-
-
-
-
+# .mat files to data
 
 def get_data(mat_data, obj_dict, rel_dict, img_dir):
     obj_data = []
@@ -362,15 +330,15 @@ def get_data(mat_data, obj_dict, rel_dict, img_dir):
         if not hasattr(datum, 'relationship'):
             continue
         img_rels = datum.relationship
-        if not hasattr(img_rels, '__getitem__'): 
-            if not all(i in dir(img_rels) for i in ['objBox', 'phrase', 'subBox']): 
+        if not hasattr(img_rels, '__getitem__'):
+            if not all(i in dir(img_rels) for i in ['objBox', 'phrase', 'subBox']):
                 print [_ for _ in dir(img_rels) if '_' not in _]
                 continue
             img_rels = [img_rels]
-            
-        img = imread(img_dir + datum.filename)     
+
+        img = imread(img_dir + datum.filename)
         img = cvtColor(img, COLOR_RGB2BGR)
-        # print datum.filename; print img.shape 
+        # print datum.filename; print img.shape
         for rel in img_rels:
             ymin1, ymax1, xmin1, xmax1 = rel.subBox
             ymin2, ymax2, xmin2, xmax2 = rel.objBox
@@ -379,11 +347,11 @@ def get_data(mat_data, obj_dict, rel_dict, img_dir):
             h1, w1 = (ymax1 - ymin1, xmax1 - xmin1)
             h2, w2 = (ymax2 - ymin2, xmax2 - xmin2)
             h3, w3 = (ymax3 - ymin3, xmax3 - xmin3)
-    
+
             img1 = square_crop(img, 224, xmin1, ymin1, w1, h1)
             img2 = square_crop(img, 224, xmin2, ymin2, w2, h2)
             img3 = square_crop(img, 224, xmin3, ymin3, w3, h3)
-    
+
             s,v,o = rel.phrase
             sd = np.zeros((100)); sd[obj_dict[s]] = 1
             od = np.zeros((100)); od[obj_dict[o]] = 1
@@ -414,19 +382,6 @@ def batchify_data(data, batch_size):
     return batched_data
 
 
-
-
-
-
-
-
-
-
-
-
-
-
-
 '''
 
 obj_dict = {r:i for i,r in enumerate(loadmat('objectListN.mat')['objectListN'])}
@@ -449,22 +404,11 @@ print rel.subBox, rel.objBox
 
 '''
 
-
-
-
-
-
-    
-
 # ---------------------------------------------------------------------------------------------------------
+# Scene graph to data
 
-
-
-
-def id_(a, b): 
+def id_(a, b):
     return str(a) + '_' + str(b)
-
-
 
 
 def parse_scenes(scene_graphs):
@@ -481,14 +425,13 @@ def parse_scenes(scene_graphs):
     return list(obj_data), list(rel_data)
 
 
-
 def load_images(batch_data, mean_file, img_path, crop_size=224, batch=True):
     """
     - load and crop images, return list in same order as given
     - if fewer images than batch size, pad batch with black frames
 
     """
-    if not batch: 
+    if not batch:
         batch_data = [batch_data]
 
     img_ids =  set(zip(*batch_data)[0])
@@ -501,17 +444,6 @@ def load_images(batch_data, mean_file, img_path, crop_size=224, batch=True):
         crop -= np.load(mean_file)
         crops.append(crop)
 
-# def batchify_data2(data, batch_size=10):
-#     pad_len = batch_size - len(batch_data)
-#     if batch and (pad_len > 0):
-#         pad_imgs = [np.zeros(224,224,3) for _ in range(pad_len)]
-#         crops = crops + pad_imgs
-#         return crops
-#     else:
-#         return crop
-
-
-
 def get_dicts(obj_data, rel_data):
     """
     Create dictionaries that give indexes for CNN outputs for object & relationship UIDs.
@@ -521,3 +453,12 @@ def get_dicts(obj_data, rel_data):
     obj_dict = {id_(img_id, obj_id)   : idx for idx, (img_id, obj_id, coord) in enumerate(obj_data)}
     rel_dict = {rid(img_id, *obj_ids) : idx for idx, (img_id, obj_ids, coord) in enumerate(rel_data)}
     return obj_dict, rel_dict
+
+# def batchify_data2(data, batch_size=10):
+#     pad_len = batch_size - len(batch_data)
+#     if batch and (pad_len > 0):
+#         pad_imgs = [np.zeros(224,224,3) for _ in range(pad_len)]
+#         crops = crops + pad_imgs
+#         return crops
+#     else:
+#         return crop

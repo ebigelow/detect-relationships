@@ -22,17 +22,17 @@ from utils import *
 import numpy as np
 import tensorflow as tf
 from numpy.random import randint
-from scipy.spatial.distance import cosine
+    from scipy.spatial.distance import cosine
 import pickle
 sys.path.append('/u/ebigelow/lib/caffe-tensorflow')
 
 
 
-def load_cnn(cnn_dir, 
-             batch_size=10, new_layer=None, 
+def load_cnn(cnn_dir,
+             batch_size=10, new_layer=None,
              crop_size=224, train=False):
     sys.path.append(cnn_dir)
-    cnn = __import__('net') 
+    cnn = __import__('net')
     tf.reset_default_graph()
     if train:
         images_var = tf.placeholder(tf.float32, [batch_size, crop_size, crop_size, 3])
@@ -65,8 +65,9 @@ def make_fc8(fc7, layer_size):
     return fc8
 
 
-def train_cnn(cnn_dir, data, 
-              batch_size=10, learning_rate=0.001, new_layer=None, 
+
+def train_cnn(cnn_dir, data,
+              batch_size=10, learning_rate=0.001, new_layer=None,
               ckpt_file='model.ckpt', init_weights=None):
     prob, graph, net, images_var = load_cnn(cnn_dir, new_layer=new_layer, train=True)
     ground_truth = tf.placeholder(tf.float32, shape=[batch_size, prob.get_shape()[1]])
@@ -83,7 +84,7 @@ def train_cnn(cnn_dir, data,
         if os.path.exists(ckpt_path):
             saver.restore(sess, ckpt_path)
         elif init_weights is not None:
-           net.load(init_weights, sess) 
+           net.load(init_weights, sess)
 
         for e, (batch_imgs, batch_labels) in enumerate(data):
             train_dict = {images_var:batch_imgs, ground_truth:batch_labels}
@@ -94,7 +95,7 @@ def train_cnn(cnn_dir, data,
                 print('Model saved: {}   Batch: {}'.format(save_path, e))
 
 
-def run_cnn(images, cnn_dir, ckpt_file, 
+def run_cnn(images, cnn_dir, ckpt_file,
             layer='prob', new_layer=None):
     prob, graph, net, images_var = load_cnn(cnn_dir, new_layer=new_layer, batch_size=1)
     # epochs = int(np.ceil(float(len(data)) / batch_size))
@@ -121,6 +122,3 @@ def test_cnn(data, cnn_dir, ckpt_file='model.ckpt', new_layer=None):
     N = float(len(data))
     accuracy = sum(np.array(labels).argmax(axis=1) == predictions) / N
     return accuracy
-
-
-

@@ -34,7 +34,7 @@ class Model:
 
 
     """
-    def __init__(self, obj_probs, rel_feats, obj_dict, rel_dict, 
+    def __init__(self, obj_probs, rel_feats, obj_dict, rel_dict,
                  w2v, w2v_dict, n,
                  init_type='TODO', noise=0.05, learning_rate=1.0, max_iters=20,
                  num_samples=500000, lamb1=0.05, lamb2=0.001):
@@ -60,16 +60,16 @@ class Model:
     def init_weights(self):
         ndim = self.rel_feats.shape[1]
         ndim, v, k = (self.noise, self.k)
-        self.W = v * np.random.rand(k, 600) 
-        self.b = v * np.random.rand(k, 1)  
-        self.Z = v * np.random.rand(k, ndim)  
-        self.s = v * np.random.rand(k, 1)  
+        self.W = v * np.random.rand(k, 600)
+        self.b = v * np.random.rand(k, 1)
+        self.Z = v * np.random.rand(k, ndim)
+        self.s = v * np.random.rand(k, 1)
 
 
     def init_R_samples(self):
         """
         Draw a number of random (i,j,k) indices: 2 objects and 1 relationship
-        
+
         """
         N, K, S = (self.n, self.k, self.num_samples)
         R_rand = lambda: (randint(N), randint(N), randint(K))
@@ -99,9 +99,9 @@ class Model:
     def d(self, R1, R2, W, b):
         """
         Distance between two predicate triplets.
-        
+
         """
-        d_rel = self.f(R1, W, b) - self.f(R2, W, b) 
+        d_rel = self.f(R1, W, b) - self.f(R2, W, b)
         d_obj = self.w2v_dist(R1, R2)
         d = (d_rel ** 2) / d_obj
         return d if (d > 0) else 1e-10
@@ -128,7 +128,7 @@ class Model:
         cnn = self.rel_feats[rel_id]
         P_k = np.dot(Z[k], cnn) + s[k]
         return P_i * P_j * P_k
-    
+
 
     def predict_Rs(self, O1, O2):
         """
@@ -181,8 +181,8 @@ class Model:
                 z = float(len(Y) * len(test_data))
                 recall += sum((y in X[:k]) for y in Y) / z
             return recall
-             
-    def SGD(self, D):   
+
+    def SGD(self, D):
         """
         Perform SGD over eqs 5 (L) 6 (C)
 
@@ -242,9 +242,9 @@ class Model:
 
                 # Update Z,s
                 # ----------
-                else:         
+                else:
                     ##print 'PART 2'
-                    # Equation 6    
+                    # Equation 6
                     if cost > 0:
                         id_o1  = self.obj_dict[O1]
                         id_o2  = self.obj_dict[O2]
@@ -262,8 +262,8 @@ class Model:
             # Equation 4
             if i % 2 == 0:
                 print 'PART 3'
-                dKfun = sum(    (2. / d(R,R_,W,b)) * 
-                                (f(R,W,b) - f(R_,W,b)) * 
+                dKfun = sum(    (2. / d(R,R_,W,b)) *
+                                (f(R,W,b) - f(R_,W,b)) *
                                 (self.word_vec(*R[:-1]) - self.word_vec(*R_[:-1]))
                             for R,R_ in self.R_samples )
 
@@ -342,11 +342,11 @@ class Model:
     # -------------------------------------------------------------------------------------------------------
     # -------------------------------------------------------------------------------------------------------
     # UNUSED METHODS IN `VisualModel`
-    
+
     def K(self):
         """  UNUSED
         Eq (4): randomly sample relationship pairs and minimize variance.
-        
+
         """
         D = []
         for R1, R2 in self.R_samples:
@@ -357,17 +357,17 @@ class Model:
     def L(self, D):
         """  UNUSED
         Likelihood of relationships
-        
+
         """
         Rs, O1s, O2s = zip(*D)
         Rs = zip(Is, Js, Ks)
         fn = lambda R1, R2: max(self.f(*R1) - self.f(*R2) + 1, 0)
         return sum(fn(R1, R2) for R1 in Rs for R2 in Rs)
-                
+
     def C(self, img_data):
         """  UNUSED
         Rank loss function
-        
+
         """
         C = 0.0
         for d1 in img_data:
@@ -379,7 +379,7 @@ class Model:
     def loss(self, img_data):
         """  UNUSED
         Final objective loss function.
-        
+
         """
         C = self.C(img_data)
         K = self.lamb1 * self.K()
@@ -449,7 +449,7 @@ class Model:
 
 
 
- def SGD(self, D):   
+ def SGD(self, D):
         """
         Perform SGD over eqs 5 (L) 6 (C)
 
@@ -547,10 +547,10 @@ class Model:
 
         data should be a list of tuples:
             (rel_id, o1_id, o2_id, Rs)
-        
+
         """
-        
-        P = {}    
+
+        P = {}
         for d in img_data:
             rel_id, o1_id, o2_id, Rs = d
             ids = (rel_id, o1_id, o2_id)
