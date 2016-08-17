@@ -12,42 +12,33 @@ conv = ConvNets('data/models/objnet/', 'data/models/relnet/', 'data/img/')
 obj_dict = {r:i for i,r in enumerate(loadmat('data/vrd/objectListN.mat')['objectListN'])}
 rel_dict = {r:i for i,r in enumerate(loadmat('data/vrd/predicate.mat')['predicate'])}
 
-#a_test  = loadmat('annotation_test.mat')['annotation_test']
-a_test  = loadmat('data/vrd/annotation_test.mat')['annotation_test'][:30]
-obj_test, rel_test = get_data(a_test, obj_dict, rel_dict, 'data/vrd/images/test/')
 a_train = loadmat('data/vrd/annotation_train.mat')['annotation_train']
-# obj_train, rel_train = get_data(a_train, obj_dict, rel_dict, 'images/train/')
-# obj_test, rel_test   = get_data(a_test,  obj_dict, rel_dict, 'images/test/')
+a_test  = loadmat('data/vrd/annotation_test.mat')['annotation_test'][:30]
 
+obj_test, rel_test = get_data(a_test, obj_dict, rel_dict, 'data/vrd/images/test/')
 
-ckpt_file = 'trained3.ckpt'
+ckpt_file = 'ckpt/model1.ckpt'
+meta_epochs = 20
+bl = np.ceil(float(len(a_train)) / train_splits).astype(int)
 
-train_splits = 20
-s = np.ceil(float(len(a_train)) / train_splits).astype(int)
-for e in range(0, train_splits):
+for e in range(0, meta_epochs):
     print '~~~~~ Meta Batch: {}, [{}:{}] ~~~~~'.format(e, e*s, (e+1)*s)
-    iter_data = a_train[e*s : (e+1)*s]
+    iter_data = a_train[e*bl : (e+1)*bl]
     obj_data, rel_data = get_data(iter_data, obj_dict, rel_dict, 'data/vrd/images/train/')
-    obj_data, rel_data = (batchify_data(obj_data, 10), batchify_data(rel_data, 10))
-    conv.train_cnn('data/models/objnet/', obj_data, new_layer=100, ckpt_file=ckpt_file, init_weights='data/models/objnet/vgg16.npy')
-    conv.train_cnn('data/models/relnet/', rel_data, new_layer=70,  ckpt_file=ckpt_file, init_weights='data/models/relnet/vgg16.npy')
 
-    # Test Model
-    accuracy_o = conv.test(obj_test, 'data/models/objnet/', ckpt_file=ckpt_file, new_layer=100)
-    accuracy_r = conv.test(rel_test, 'data/models/relnet/', ckpt_file=ckpt_file, new_layer=70)
-    print '{} | OBJ ACCURACY: {}'.format(e, accuracy_o)
-    print '{} | REL ACCURACY: {}'.format(e, accuracy_r)
+    obj_params = {'cnn_dir':'data/models/objnet/', 
+                  'ckpt_file':ckpt_file, 
+                  'new_layer':100 }
+    train_cnn(batchify_data(obj_data, 10), **obj_params, 
+              init_weights='data/models/objnet/vgg16.npy')
+    print '{} | OBJ ACCURACY: {}'.format(e, test_cnn(obj_test, **obj_params))
 
-
-
-
-# obj_test, rel_test   = get_data(a_test,  obj_dict, rel_dict, 'images/test/')
-
-
-# Train model
-
-
-
+    rel_params = {'cnn_dir':'data/models/relnet/', 
+                  'ckpt_file':ckpt_file, 
+                  'new_layer':70 }
+    train_cnn(batchify_data(rel_data, 10), **rel_params, 
+              init_weights='data/models/relnet/vgg16.npy')
+    print '{} | REL ACCURACY: {}'.format(e, test_cnn(rel_test, **rel_params))
 
 
 

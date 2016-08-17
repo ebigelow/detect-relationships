@@ -4,6 +4,10 @@ from utils import square_crop
 from skimage.io import imread
 from cv2 import cvtColor, COLOR_RGB2BGR
 import numpy as np
+import inspect
+
+
+
 
 def loadmat(filename):
     '''
@@ -40,6 +44,13 @@ def _todict(matobj):
             dict[strg] = elem
     return dict
 
+
+
+
+
+def fix_kwargs(f, kwargs):
+    keys = inspect.getargspec(f)
+    return {k:kwargs[k] for k in kwargs if k in keys}
 
 
 
