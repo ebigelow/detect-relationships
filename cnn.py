@@ -94,7 +94,7 @@ def train_cnn(data, cnn_dir='data/models/objnet/',
             if e % 20 == 0:
                 save_path = saver.save(sess, ckpt_path + '.' + str(e))
                 print('Model saved: {}   Batch: {}'.format(save_path, e))
-
+                test2(cnn_dir=cnn_dir, ckpt_file=ckpt_path+'.'+str(e), new_layer=new_layer)
 
 def run_cnn(images, cnn_dir='data/models/objnet/', ckpt_file='model.ckpt',
             layer='prob', new_layer=None):
@@ -123,3 +123,20 @@ def test_cnn(data, cnn_dir='data/models/objnet/', ckpt_file='model.ckpt', new_la
     N = float(len(data))
     accuracy = sum(np.array(labels).argmax(axis=1) == predictions) / N
     return accuracy
+
+
+
+
+from utils import loadmat, get_data
+
+obj_dict = {r:i for i,r in enumerate(loadmat('data/vrd/objectListN.mat')['objectListN'])}
+rel_dict = {r:i for i,r in enumerate(loadmat('data/vrd/predicate.mat')['predicate'])}
+
+a_test  = loadmat('data/vrd/annotation_test.mat')['annotation_test'][-30:]
+obj_test, rel_test = get_data(a_test, obj_dict, rel_dict, 'data/vrd/images/test/')
+
+def test2(cnn_dir='', ckpt_file='', new_layer=''):
+    if new_layer == 70:
+        test_cnn(rel_test, cnn_dir=cnn_dir, ckpt_file=ckpt_path+'.'+str(e), new_layer=new_layer)
+    else:
+        test_cnn(obj_test, cnn_dir=cnn_dir, ckpt_file=ckpt_path+'.'+str(e), new_layer=new_layer)

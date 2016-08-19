@@ -3,10 +3,6 @@ import numpy as np
 from utils import loadmat, get_data
 from cnn import load_cnn, train_cnn, test_cnn
 
-
-# Initialize model
-#conv = ConvNets('data/models/objnet/', 'data/models/relnet/', 'data/img/')
-
 # Prepare data
 obj_dict = {r:i for i,r in enumerate(loadmat('data/vrd/objectListN.mat')['objectListN'])}
 rel_dict = {r:i for i,r in enumerate(loadmat('data/vrd/predicate.mat')['predicate'])}
@@ -22,7 +18,7 @@ batch_len = np.ceil(float(len(a_train)) / meta_epochs).astype(int)
 
 for e in range(0, meta_epochs):
     print '~~~~~ Meta Batch: {}, [{}:{}] ~~~~~'.format(e, e*batch_len, (e+1)*batch_len)
-    iter_data = a_train[e*batch_len: (e+1)*batch_len]
+    iter_data = a_train[e*batch_len : (e+1)*batch_len]
     obj_data, rel_data = get_data(iter_data, obj_dict, rel_dict, 'data/vrd/images/train/')
 
     obj_params = {'cnn_dir':'data/models/objnet/',
