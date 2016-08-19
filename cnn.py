@@ -66,7 +66,7 @@ def make_fc8(fc7, layer_size):
 
 
 
-def train_cnn(cnn_dir, data,
+def train_cnn(data, cnn_dir='data/models/objnet/',
               batch_size=10, learning_rate=0.001, new_layer=None,
               ckpt_file='model.ckpt', init_weights=None):
     data = batchify_data(data, batch_size)
@@ -96,7 +96,7 @@ def train_cnn(cnn_dir, data,
                 print('Model saved: {}   Batch: {}'.format(save_path, e))
 
 
-def run_cnn(images, cnn_dir, ckpt_file,
+def run_cnn(images, cnn_dir='data/models/objnet/', ckpt_file='model.ckpt',
             layer='prob', new_layer=None):
     prob, graph, net, images_var = load_cnn(cnn_dir, new_layer=new_layer, batch_size=1)
     # epochs = int(np.ceil(float(len(data)) / batch_size))
@@ -115,9 +115,9 @@ def run_cnn(images, cnn_dir, ckpt_file,
 
     return np.vstack(layer_out)
 
-def test_cnn(data, cnn_dir, ckpt_file='model.ckpt', new_layer=None):
+def test_cnn(data, cnn_dir='data/models/objnet/', ckpt_file='model.ckpt', new_layer=None):
     images, labels = zip(*data)
-    output = run_cnn(images, cnn_dir, ckpt_file, new_layer=new_layer)
+    output = run_cnn(images, cnn_dir=cnn_dir, ckpt_file=ckpt_file, new_layer=new_layer)
 
     predictions = output.argmax(axis=1)
     N = float(len(data))
