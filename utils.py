@@ -80,7 +80,7 @@ def fix_r(r):
         r.predicate = 'front'
     r.subject = fix_o(r.subject)
     r.object = fix_o(r.object)
-    return o
+    return r
 
 def fix_o(o):
     if o.names[0] == 'windw':
@@ -156,44 +156,6 @@ def make_w2v(word_list, w2v_bin='data/GoogleNews-vectors-negative300.bin'):
 #
 # 2320405 -> 1753128
 # 1184829 -> 517156
-
-def prune_scenes(scene_graphs, rword_fname='data/pk/rel_words.pk',
-                 ofilter_fname='data/pk/obj_counts.pk', rfilter_fname='data/pk/rel_counts.pk'):
-    rel_words = pickle.load(open(rword_fname,'r'))
-    obj_filter = pickle.load(open(ofilter_fname,'r'))
-    rel_filter = pickle.load(open(rfilter_fname,'r'))
-
-    # rename = lambda w, d: d[w] if w in d else w.lower().strip().replace(' ','_')
-    fix = lambda s: s.lower().strip().replace(' ','_')
-    rename = lambda w, d: d[fix(w)] if fix(w) in d else fix(w)
-
-    for sg in scene_graphs:
-        for r in sg.relationships:
-            s = rename(r.subject.names[0], [])
-            v = rename(r.predicate, rel_words)
-            o = rename(r.object.names[0],  [])
-            if (s not in obj_filter) or (v not in rel_filter) or (o not in obj_filter):
-                sg.relationships.remove(r)
-            else:
-                r.subject.names[0] = s
-                r.predicate        = v
-                r.object.names[0]  = o
-
-        for o in sg.objects:
-            o_ = rename(o.names[0], [])
-            if o_ not in obj_filter:
-                sg.objects.remove(o)
-            else:
-                o.names[0] = o_
-
-        if len(sg.objects) == 0 or len(sg.relationships) == 0:
-            scene_graphs.remove(sg)
-            del sg
-
-    import gc
-    gc.collect()
-
-    return scene_graphs
 
 
 def prune_scenes(scene_graphs, rword_fname='data/pk/rel_words.pk',
@@ -331,7 +293,7 @@ def _todict(matobj):
 # s,v,o = rel.phrase
 # print rel.subBox, rel.objBox
 
-def get_data(mat_data, obj_dict, rel_dict, img_dir):
+def get_data(mat_data, obj_dict, rel_dict, img_dir, mean_file='mean.npy'):
     obj_data = []
     rel_data = []
 
