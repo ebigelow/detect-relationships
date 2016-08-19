@@ -28,13 +28,13 @@ for e in range(0, meta_epochs):
     obj_params = {'cnn_dir':'data/models/objnet/',
                   'ckpt_file':ckpt_file,
                   'new_layer':100 }
-    train_cnn(obj_data,
-              batch_size=10, init_weights='data/models/objnet/vgg16.npy', **obj_params)
-    print '{} | OBJ ACCURACY: {}'.format(e, test_cnn(obj_test, **obj_params))
+    train_cnn(obj_data, batch_size=10, init_weights='data/models/objnet/vgg16.npy', **obj_params)
+    o_accuracy = test_cnn(obj_test, **obj_params)
+    print '{} | Object Accuracy: {}'.format(e, o_accuracy)
 
     rel_params = {'cnn_dir':'data/models/relnet/',
                   'ckpt_file':ckpt_file,
                   'new_layer':70 }
-    train_cnn(rel_data,
-              batch_size=10, init_weights='data/models/relnet/vgg16.npy', **rel_params)
-    print '{} | REL ACCURACY: {}'.format(e, test_cnn(rel_test, **rel_params))
+    train_cnn(rel_data, batch_size=10, init_weights='data/models/relnet/vgg16.npy', **rel_params)
+    r_accuracy = test_cnn(rel_test, **rel_params)
+    print '{} | Relationship Accuracy: {}'.format(e, r_accuracy)
