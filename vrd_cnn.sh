@@ -7,4 +7,4 @@ export LD_LIBRARY_PATH=/usr/local/cuda-7.5/lib64:/localdisk/ebigelow/lib/cudnn-7
 source ~/.virtualenvs/tf/bin/activate
 
 
-python test2.py
+python vrd_cnn.py
