@@ -4,7 +4,7 @@
 Parameters
 ----------
 cnn_classes : path to python classes output from caffe-tensorflow ;
-              should have `RelationNet` and `ObjectNet` as class names
+              should have `net.py` as filename, `CaffeNet` as class name
 obj_weights : path to numpy weights file for ObjectNet
 rel_weights : path to numpy weights file for RelationNet
 
@@ -22,7 +22,7 @@ from utils import *
 import numpy as np
 import tensorflow as tf
 from numpy.random import randint
-    from scipy.spatial.distance import cosine
+from scipy.spatial.distance import cosine
 import pickle
 sys.path.append('/u/ebigelow/lib/caffe-tensorflow')
 
@@ -69,6 +69,7 @@ def make_fc8(fc7, layer_size):
 def train_cnn(cnn_dir, data,
               batch_size=10, learning_rate=0.001, new_layer=None,
               ckpt_file='model.ckpt', init_weights=None):
+    data = batchify_data(data, batch_size)
     prob, graph, net, images_var = load_cnn(cnn_dir, new_layer=new_layer, train=True)
     ground_truth = tf.placeholder(tf.float32, shape=[batch_size, prob.get_shape()[1]])
 
