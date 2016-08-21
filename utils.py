@@ -371,3 +371,65 @@ def parse_scenes(scene_graphs):
     obj_data.update({(sg.image.id, o.id, (o.x, o.y, o.width, o.height)) for sg in scene_graphs for r in sg.relationships for o in (r.subject, r.object)})
     rel_data = {(sg.image.id, r_id(r), (r.x, r.y, r.width, r.height)) for sg in scene_graphs for r in sg.relationships}
     return list(obj_data), list(rel_data)
+
+
+
+
+# ---------------------------------------------------------------------------------------------------------
+# NEW
+
+
+def load_data_batcher(obj_list_path, rel_list_path, mat_path,
+                      batch_size=10, meta_epochs=20, net='objnet'):
+
+    obj_dict = {r:i for i,r in enumerate(loadmat(obj_list_path)['objectListN'])}
+    rel_dict = {r:i for i,r in enumerate(loadmat(rel_list_path)['predicate'])}
+
+    a_train = loadmat(mat_path)[mat_path.split('.')[0]]
+    # a_test  = loadmat(test_mat_path)['annotation_test'][:30]
+
+    for e in range(meta_epochs):
+        meta_batch_data = a_train[e*batch_len : (e+1)*batch_len]
+        # obj_test, rel_test = get_data(a_test, obj_dict, rel_dict, 'data/vrd/images/test/')
+        obj_meta, rel_meta = get_data(meta_batch_data, obj_dict, rel_dict, 'data/vrd/images/train/')
+
+        if net == 'objnet':
+            yield batchify_data(obj_meta, batch_size)
+        if net == 'relnet':
+            yield batchify_data(rel_meta, batch_size)
+
+
+import skimage
+
+def load_image(path):
+    """
+    returns image of shape [224, 224, 3]
+    [height, width, depth]
+
+    From: https://github.com/machrisaa/tensorflow-vgg/blob/master/utils.py
+
+    """
+    # load image
+    img = skimage.io.imread(path)
+    img = img / 255.0
+    assert (0 <= img).all() and (img <= 1.0).all()
+    # print 'Original Image Shape: ', img.shape
+    # we crop image from center
+    short_edge = min(img.shape[:2])
+    yy = int((img.shape[0] - short_edge) / 2)
+    xx = int((img.shape[1] - short_edge) / 2)
+    crop_img = img[yy: yy + short_edge, xx: xx + short_edge]
+    # resize to 224, 224
+    resized_img = skimage.transform.resize(crop_img, (224, 224))
+    return resized_img
+
+
+def tf_rgb2bgr(rgb):
+    # Convert RGB to BGR
+    red, green, blue = tf.split(3, 3, rgb)
+    bgr = tf.concat(3, [
+        blue - VGG_MEAN[0],
+        green - VGG_MEAN[1],
+        red - VGG_MEAN[2],
+    ])
+    return bgr

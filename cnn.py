@@ -48,22 +48,30 @@ def load_cnn(cnn_dir,
 def make_prob(graph, new_layer):
     if new_layer is not None:
         fc7 = graph.get_tensor_by_name('fc7/fc7:0')
-        with tf.variable_scope('fc8_new'):
-            fc8 = make_fc8(fc7, new_layer)
-        with tf.variable_scope('prob'):
-            prob = tf.nn.softmax(fc8)
+        fc8 = make_fc8(fc7, new_layer)
+        prob = tf.nn.softmax(fc8, name="prob")
     else:
         prob = graph.get_tensor_by_name('prob')
+    tf.histogram_summary('fc8' + '/activations', prob)
     return prob
 
 def make_fc8(fc7, layer_size):
-    init = tf.random_normal_initializer()
-    fc8W = tf.get_variable('weights', [4096, layer_size], initializer=init)
-    fc8b = tf.get_variable('biases',  [layer_size],       initializer=init)
-    with tf.variable_scope('fc8'):
-        fc8 = tf.nn.xw_plus_b(fc7, fc8W, fc8b)
+    with tf.variable_scope('fc8_new'):
+        init = tf.random_normal_initializer()
+        fc8W = tf.get_variable('weights', [4096, layer_size], initializer=init)
+        fc8b = tf.get_variable('biases',  [layer_size],       initializer=init)
+        with tf.variable_scope('fc8'):
+            fc8 = tf.nn.xw_plus_b(fc7, fc8W, fc8b)
     return fc8
 
+def make_accuracy(gts, preds):
+    with tf.name_scope('accuracy'):
+        with tf.name_scope('correct_prediction'):
+            correct_prediction = tf.equal(tf.argmax(gts, 1), tf.argmax(preds, 1))
+        with tf.name_scope('accuracy'):
+            accuracy = tf.reduce_mean(tf.cast(correct_prediction, tf.float32))
+        tf.scalar_summary('accuracy', accuracy)
+    return accuracy
 
 
 def train_cnn(data, cnn_dir='data/models/objnet/',
@@ -73,7 +81,9 @@ def train_cnn(data, cnn_dir='data/models/objnet/',
     prob, graph, net, images_var = load_cnn(cnn_dir, new_layer=new_layer, train=True)
     ground_truth = tf.placeholder(tf.float32, shape=[batch_size, prob.get_shape()[1]])
 
-    cost = tf.nn.sigmoid_cross_entropy_with_logits(prob, ground_truth)
+    with tf.name_scope('cost'):
+        cost = tf.nn.sigmoid_cross_entropy_with_logits(prob, ground_truth)
+        tf.scalar_summary('cost', cost)
     # TODO: use other optimizers
     train_op = tf.train.AdamOptimizer(learning_rate).minimize(cost)
 
@@ -94,7 +104,6 @@ def train_cnn(data, cnn_dir='data/models/objnet/',
             if e % 20 == 0:
                 save_path = saver.save(sess, ckpt_path + '.' + str(e))
                 print('Model saved: {}   Batch: {}'.format(save_path, e))
-                test2(cnn_dir=cnn_dir, ckpt_file=ckpt_path+'.'+str(e), new_layer=new_layer)
 
 def run_cnn(images, cnn_dir='data/models/objnet/', ckpt_file='model.ckpt',
             layer='prob', new_layer=None):
@@ -123,20 +132,3 @@ def test_cnn(data, cnn_dir='data/models/objnet/', ckpt_file='model.ckpt', new_la
     N = float(len(data))
     accuracy = sum(np.array(labels).argmax(axis=1) == predictions) / N
     return accuracy
-
-
-
-
-from utils import loadmat, get_data
-
-obj_dict = {r:i for i,r in enumerate(loadmat('data/vrd/objectListN.mat')['objectListN'])}
-rel_dict = {r:i for i,r in enumerate(loadmat('data/vrd/predicate.mat')['predicate'])}
-
-a_test  = loadmat('data/vrd/annotation_test.mat')['annotation_test'][-30:]
-obj_test, rel_test = get_data(a_test, obj_dict, rel_dict, 'data/vrd/images/test/')
-
-def test2(cnn_dir='', ckpt_file='', new_layer=''):
-    if new_layer == 70:
-        test_cnn(rel_test, cnn_dir=cnn_dir, ckpt_file=ckpt_path+'.'+str(e), new_layer=new_layer)
-    else:
-        test_cnn(obj_test, cnn_dir=cnn_dir, ckpt_file=ckpt_path+'.'+str(e), new_layer=new_layer)
