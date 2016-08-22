@@ -13,7 +13,7 @@ VGG_MEAN = [103.939, 116.779, 123.68]
 class CustomVgg16:
     def __init__(self, vgg16_npy_path=None):
         if vgg16_npy_path is None:
-            path = inspect.getfile(Vgg16)
+            path = inspect.getfile(CustomVgg16)
             path = os.path.abspath(os.path.join(path, os.pardir))
             path = os.path.join(path, 'vgg.npy')
             vgg16_npy_path = path
@@ -74,7 +74,7 @@ class CustomVgg16:
                                        w_init_shape=[4096, output_size],
                                        b_init_shape=[output_size])
         self.prob = tf.nn.softmax(self.fc8, name='prob')
-        tf.histogram_summary('prob', self.prob)
+        #tf.histogram_summary('prob', self.prob)
 
         self.data_dict = None
 
@@ -111,7 +111,7 @@ class CustomVgg16:
 
             fc = tf.nn.bias_add(tf.matmul(x, weights), biases)
 
-            tf.histogram_summary(name, fc)
+            #tf.histogram_summary(name, fc)
             return fc
 
     def get_conv_filter(self, layer_name, train=False, init_shape=None):
@@ -151,13 +151,13 @@ class CustomVgg16:
             with tf.variable_scope('accuracy'):
                 accuracy = tf.reduce_mean(tf.cast(correct_predictions, tf.float32))
 
-            tf.histogram_summary('correct_prediction', correct_prediction)
-            tf.scalar_summary('accuracy', accuracy)
+            #tf.histogram_summary('correct_prediction', correct_prediction)
+            #tf.scalar_summary('accuracy', accuracy)
         return accuracy
 
     def get_all_var(self):
         D = self.var_dict
-        var_list = [(var, name, idx) for name in D for idx in D[name]]
+        var_list = [(var, name, D[name].index(var)) for name in D for var in D[name]]
         return zip(*var_list)
 
     def save_npy(self, sess, file_path='./vgg.npy'):
@@ -176,14 +176,15 @@ class CustomVgg16:
         np.save(file_path, data_dict)
         print 'file saved: {}'.format(file_path)
 
-    def get_train_op(self, learning_rate=0.001):
+    def get_train_op(self, learning_rate=0.005):
         with tf.variable_scope('ground_truth'):
-            ground_truth = tf.placeholder(tf.float32, shape=[batch_size, self.prob.get_shape()[1]])
+            ground_truth = tf.placeholder(tf.float32, shape=self.prob.get_shape())
 
         with tf.variable_scope('cost'):
-            cost = tf.nn.sigmoid_cross_entropy_with_logits(self.prob, ground_truth)
+            cost = tf.reduce_mean(tf.nn.sigmoid_cross_entropy_with_logits(self.prob, ground_truth))
 
         # TODO: different training operations?
-        train_op = tf.train.AdamOptimizer(learning_rate).minimize(cost)
-        tf.scalar_summary('cost', cost)
+        #train_op = tf.train.AdamOptimizer(learning_rate).minimize(cost)
+        train_op = tf.train.GradientDescentOptimizer(learning_rate).minimize(cost)
+        #tf.scalar_summary('cost', cost)
         return ground_truth, cost, train_op

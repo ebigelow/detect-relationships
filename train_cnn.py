@@ -1,3 +1,4 @@
+import tensorflow as tf
 from utils import load_data_batcher
 from vgg16 import CustomVgg16
 
@@ -5,7 +6,7 @@ from vgg16 import CustomVgg16
 
 tf.app.flags.DEFINE_float('gpu_mem_fraction', 0.9)
 
-tf.app.flags.DEFINE_integer('output_size', 'output_size',
+tf.app.flags.DEFINE_integer('output_size', 100,
     'Size of final output layer')
 tf.app.flags.DEFINE_string('init_path', 'data/models/objnet/vgg16a.npy',
     'Initial weights')
@@ -46,7 +47,8 @@ if __name__ == '__main__':
             for b, (image, label) in enumerate(data_batch):
                 feed_dict = {ground_truth: labels,
                              images_var: batch_images}
-                sess.run([merged, train_op], feed_dict=feed_dict)
+                #sess.run([merged, train_op], feed_dict=feed_dict)
+                sess.run(train_op, feed_dict=feed_dict)
 
                 if b % FLAGS.save_freq == 0:
                     batch_cost = sess.run(cost, feed_dict=feed_dict)

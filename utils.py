@@ -5,6 +5,7 @@ import numpy as np
 import scipy.io as spio
 from cv2 import cvtColor, COLOR_RGB2BGR
 import inspect
+import tensorflow as tf
 
 
 # ---------------------------------------------------------------------------------------------------------
@@ -385,9 +386,10 @@ def load_data_batcher(obj_list_path, rel_list_path, mat_path,
     obj_dict = {r:i for i,r in enumerate(loadmat(obj_list_path)['objectListN'])}
     rel_dict = {r:i for i,r in enumerate(loadmat(rel_list_path)['predicate'])}
 
-    a_train = loadmat(mat_path)[mat_path.split('.')[0]]
+    a_train = loadmat(mat_path)[mat_path.split('/')[-1].split('.')[0]]
     # a_test  = loadmat(test_mat_path)['annotation_test'][:30]
 
+    batch_len = np.ceil(float(len(a_train)) / meta_epochs).astype(int)
     for e in range(meta_epochs):
         meta_batch_data = a_train[e*batch_len : (e+1)*batch_len]
         # obj_test, rel_test = get_data(a_test, obj_dict, rel_dict, 'data/vrd/images/test/')
@@ -423,6 +425,8 @@ def load_image(path):
     resized_img = skimage.transform.resize(crop_img, (224, 224))
     return resized_img
 
+
+VGG_MEAN = [103.939, 116.779, 123.68]
 
 def tf_rgb2bgr(rgb):
     # Convert RGB to BGR
