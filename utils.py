@@ -380,7 +380,7 @@ def parse_scenes(scene_graphs):
 
 
 def load_data_batcher(obj_list_path, rel_list_path, mat_path,
-                      batch_size=10, meta_epochs=20, net='objnet'):
+                      batch_size=10, meta_epochs=20, output_size=70):
 
     obj_dict = {r:i for i,r in enumerate(loadmat(obj_list_path)['objectListN'])}
     rel_dict = {r:i for i,r in enumerate(loadmat(rel_list_path)['predicate'])}
@@ -393,9 +393,9 @@ def load_data_batcher(obj_list_path, rel_list_path, mat_path,
         # obj_test, rel_test = get_data(a_test, obj_dict, rel_dict, 'data/vrd/images/test/')
         obj_meta, rel_meta = get_data(meta_batch_data, obj_dict, rel_dict, 'data/vrd/images/train/')
 
-        if net == 'objnet':
+        if output_size == 100:
             yield batchify_data(obj_meta, batch_size)
-        if net == 'relnet':
+        if output_size == 70:
             yield batchify_data(rel_meta, batch_size)
 
 
@@ -433,3 +433,20 @@ def tf_rgb2bgr(rgb):
         red - VGG_MEAN[2],
     ])
     return bgr
+
+
+
+
+
+
+def test_cnn(net, ground_truth,
+             obj_list_path, rel_list_path, mat_path, N=100):
+
+    obj_dict = {r:i for i,r in enumerate(loadmat(obj_list_path)['objectListN'])}
+    rel_dict = {r:i for i,r in enumerate(loadmat(rel_list_path)['predicate'])}
+
+    a_train = loadmat(mat_path)[mat_path.split('.')[0]][:N]
+
+    images_var = tf.placeholder('float', [num_imgs, 224, 224, 3])
+    ground_truth = tf.placeholder(tf.float32, shape=[num_imgs, net.prob.get_shape()[1]])
+    accuracy = get_accuracy(net.probs, ground_truth)

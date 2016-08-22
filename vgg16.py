@@ -143,10 +143,10 @@ class CustomVgg16:
 
         return var
 
-    def get_accuracy(self, probs, GTs):
+    def get_accuracy(self, GTs):
         with tf.variable_scope('accuracy'):
             with tf.variable_scope('correct_prediction'):
-                correct_predictions = tf.equal(tf.argmax(probs, 1), tf.argmax(GTs, 1))
+                correct_predictions = tf.equal(tf.argmax(self.prob, 1), tf.argmax(GTs, 1))
 
             with tf.variable_scope('accuracy'):
                 accuracy = tf.reduce_mean(tf.cast(correct_predictions, tf.float32))
