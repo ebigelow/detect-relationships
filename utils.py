@@ -300,11 +300,12 @@ def get_data(mat_data, obj_dict, rel_dict, img_dir, mean_file='mean.npy'):
 
     for datum in mat_data:
         if not hasattr(datum, 'relationship'):
+            print 'skipping image, no relationship'
             continue
         img_rels = datum.relationship
         if not hasattr(img_rels, '__getitem__'):
             if not all(i in dir(img_rels) for i in ['objBox', 'phrase', 'subBox']):
-                print [_ for _ in dir(img_rels) if '_' not in _]
+                print 'skipping relation, dir contains:', [_ for _ in dir(img_rels) if '_' not in _]
                 continue
             img_rels = [img_rels]
 
@@ -380,27 +381,6 @@ def parse_scenes(scene_graphs):
 # NEW
 
 
-def load_data_batcher(obj_list_path, rel_list_path, mat_path,
-                      batch_size=10, meta_epochs=20, output_size=70):
-
-    obj_dict = {r:i for i,r in enumerate(loadmat(obj_list_path)['objectListN'])}
-    rel_dict = {r:i for i,r in enumerate(loadmat(rel_list_path)['predicate'])}
-
-    a_train = loadmat(mat_path)[mat_path.split('/')[-1].split('.')[0]]
-    # a_test  = loadmat(test_mat_path)['annotation_test'][:30]
-
-    batch_len = np.ceil(float(len(a_train)) / meta_epochs).astype(int)
-    for e in range(meta_epochs):
-        meta_batch_data = a_train[e*batch_len : (e+1)*batch_len]
-        # obj_test, rel_test = get_data(a_test, obj_dict, rel_dict, 'data/vrd/images/test/')
-        obj_meta, rel_meta = get_data(meta_batch_data, obj_dict, rel_dict, 'data/vrd/images/train/')
-
-        if output_size == 100:
-            yield batchify_data(obj_meta, batch_size)
-        if output_size == 70:
-            yield batchify_data(rel_meta, batch_size)
-
-
 import skimage
 
 def load_image(path):
@@ -440,17 +420,101 @@ def tf_rgb2bgr(rgb):
 
 
 
-
-
-
-def test_cnn(net, ground_truth,
-             obj_list_path, rel_list_path, mat_path, N=100):
-
+def load_data_batcher(mat_path, obj_list_path, rel_list_path,
+                      batch_size=10, meta_epochs=20,
+                      img_dir='data/vrd/images/train/', which_net='objnet'):
     obj_dict = {r:i for i,r in enumerate(loadmat(obj_list_path)['objectListN'])}
     rel_dict = {r:i for i,r in enumerate(loadmat(rel_list_path)['predicate'])}
 
-    a_train = loadmat(mat_path)[mat_path.split('.')[0]][:N]
+    mat = loadmat(mat_path)[mat_path.split('/')[-1].split('.')[0]]
 
+    batch_len = np.ceil(float(len(mat)) / meta_epochs).astype(int)
+    for e in range(meta_epochs):
+        meta_batch_data = mat[e*batch_len : (e+1)*batch_len]
+        # obj_test, rel_test = get_data(a_test, obj_dict, rel_dict, 'data/vrd/images/test/')
+        obj_meta, rel_meta = get_data(meta_batch_data, obj_dict, rel_dict, img_dir)
+
+        if which_net is 'objnet':
+            yield batchify_data(obj_meta, batch_size)
+        else:
+            yield batchify_data(rel_meta, batch_size)
+
+
+
+
+
+def test_cnn(net, ground_truth, N_test=1000, which_net='objnet',
+             obj_list_path='data/vrd/objectListN.mat', rel_list_path='data/vrd/predicate.mat',
+             mat_path='data/vrd/annotation_test.mat', images_dir='data/vrd/images/test/'):
     images_var = tf.placeholder('float', [num_imgs, 224, 224, 3])
     ground_truth = tf.placeholder(tf.float32, shape=[num_imgs, net.prob.get_shape()[1]])
-    accuracy = get_accuracy(net.probs, ground_truth)
+    accuracy = net.get_accuracy(ground_truth)
+
+    d_test = load_data_batcher(mat_path, obj_list_path, rel_list_path, N_test, 1, images_dir, which_net)
+    images, labels = d_test.next()[:N_test]
+
+    with session_init() as sess:
+        tf.initialize_all_variables().run()
+        feed_dict = {ground_truth: labels,
+                     images_var: images}
+        summary, acc = sess.run(accuracy, feed_dict=feed_dict)
+        print('Accuracy at step %s: %s' % (i, acc))
+
+
+
+
+
+#
+#
+# def train_cnn(net, ground_truth, N_test=100, which_net='objnet',
+#               obj_list_path='data/vrd/objectListN.mat', rel_list_path='data/vrd/predicate.mat',
+#               train_mat_path='data/vrd/annotation_test.mat', train_images_dir='data/vrd/images/train/',
+#               test_mat_path='data/vrd/annotation_test.mat', test_images_dir='data/vrd/images/train/',
+#               gpu_mem_fraction=0.9, output_size = 100,
+#               init_path='data/models/objnet/vgg16.npy', save_path = 'data/models/objnet/vgg16_trained2.npy'):
+#
+#
+#
+#
+#
+#     batch_size = 10
+#     save_freq = 200
+#     meta_epochs = 20
+#
+#     obj_list  = 'data/vrd/objectListN.mat'
+#     rel_list  = 'data/vrd/predicate.mat'
+#     train_mat = 'data/vrd/annotation_train.mat'
+#     test_mat  = 'data/vrd/annotation_test.mat'
+#
+#     data_batcher = load_data_batcher(train_mat_path, obj_list_path, rel_list_path,
+#                                      batch_size, meta_epochs, which_net)
+#     data_test = load_data_batcher(test_mat_path, obj_list_path, rel_list_path,
+#                                   1000, 1, images_dir, which_net)
+#     data_test = data_test
+#
+#
+#     images_var = tf.placeholder('float', [batch_size, 224, 224, 3])
+#     net = CustomVgg16(init_path)
+#     net.build(images_var, train=True, output_size=output_size)
+#
+#     ground_truth, cost, train_op = net.get_train_op()
+#
+#     # TODO: should this be here?
+#     merged = tf.merge_all_summaries()
+#
+#     gpu_fraction = tf.GPUOptions(per_process_gpu_memory_fraction=gpu_mem_fraction)
+#     session_init = lambda: tf.Session(config=tf.ConfigProto(gpu_options=(gpu_fraction)))
+#
+#     with session_init() as sess:
+#         tf.initialize_all_variables().run()
+#         for mb, data_batch in enumerate(data_batcher):
+#             for b, (images, labels) in enumerate(data_batch):
+#                 feed_dict = {ground_truth: labels,
+#                              images_var: images}
+#                 # sess.run([merged, train_op], feed_dict=feed_dict)
+#                 sess.run(train_op, feed_dict=feed_dict)
+#                 if b % save_freq == 0:
+#                     batch_cost = sess.run(cost, feed_dict=feed_dict)
+#                     print '\tbatch {}-{} cost: {}'.format(mb, b, batch_cost), batch_cost.shape
+#                     net.save_npy(sess, file_path=save_path+'.checkpoint-{}-{}'.format(mb,b))
+#         net.save_npy(sess, file_path=save_path)
