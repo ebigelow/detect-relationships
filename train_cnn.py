@@ -1,6 +1,7 @@
 import tensorflow as tf
 from utils import load_data_batcher
 from vgg16 import CustomVgg16
+from numpy import mean
 
 
 
@@ -28,7 +29,7 @@ if __name__ == '__main__':
     data_batcher = load_data_batcher(FLAGS.train_mat, FLAGS.obj_list, FLAGS.rel_list, 
                                      FLAGS.batch_size, FLAGS.meta_epochs, 'data/vrd/images/train/', FLAGS.which_net)
     test_batcher = load_data_batcher(FLAGS.test_mat, FLAGS.obj_list, FLAGS.rel_list,
-                                     FLAGS.batch_size, 1, 'data/vrd/images/test/', FLAGS.which_net)
+                                     FLAGS.batch_size, 1, 'data/vrd/images/test/', FLAGS.which_net).next()
 
     images_var = tf.placeholder('float', [FLAGS.batch_size, 224, 224, 3])
     net = CustomVgg16(FLAGS.init_path)
@@ -54,13 +55,13 @@ if __name__ == '__main__':
 
             if mb % FLAGS.save_freq == 0:
                 accs = []
-                for test_images, test_labels in test_batcher.next():
+                for test_images, test_labels in test_batcher:
                     feed_dict = {ground_truth: test_labels,
-                                 images_var: test_labels}
+                                 images_var: test_images}
                     batch_acc = sess.run(accuracy, feed_dict=feed_dict)
                     accs.append(batch_acc)
 
-                print '\tmbatch {} acurracy: {}'.format(mb, acc.mean())
+                print '\tmbatch {} acurracy: {}'.format(mb, mean(accs))
                 # net.save_npy(sess, file_path=FLAGS.save_path+'.checkpoint-{}-{}'.format(mb,b))
 
         net.save_npy(sess, file_path=FLAGS.save_path)

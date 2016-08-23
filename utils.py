@@ -300,7 +300,7 @@ def get_data(mat_data, obj_dict, rel_dict, img_dir, mean_file='mean.npy'):
 
     for datum in mat_data:
         if not hasattr(datum, 'relationship'):
-            print 'skipping image, no relationship'
+            print 'skipping image {}, no relationship'.format(datum.filename)
             continue
         img_rels = datum.relationship
         if not hasattr(img_rels, '__getitem__'):
