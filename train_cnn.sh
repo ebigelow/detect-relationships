@@ -10,10 +10,10 @@ source ~/.virtualenvs/tf/bin/activate
 python train_cnn.py                                     \
   -gpu_mem_fraction 0.9                                 \
   -output_size 100                                      \
-  -init_path "data/models/objnet/vgg16.npy"             \
+  -init_path "data/models/vgg16.npy"                    \
   -save_path "data/models/objnet/vgg16_trained.npy"     \
   -batch_size 10                                        \
-  -save_freq 200                                         \
+  -save_freq 1                                          \
   -meta_epochs 20                                       \
   -obj_list  "data/vrd/objectListN.mat"                 \
   -rel_list  "data/vrd/predicate.mat"                   \
