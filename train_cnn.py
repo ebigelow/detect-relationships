@@ -26,8 +26,6 @@ tf.app.flags.DEFINE_string('test_mat',  'data/vrd/annotation_test.mat',  '')
 FLAGS = tf.app.flags.FLAGS
 
 if __name__ == '__main__':
-    data_batcher = load_data_batcher(FLAGS.train_mat, FLAGS.obj_list, FLAGS.rel_list, 
-                                     FLAGS.batch_size, FLAGS.meta_epochs, 'data/vrd/images/train/', FLAGS.which_net)
     test_batcher = load_data_batcher(FLAGS.test_mat, FLAGS.obj_list, FLAGS.rel_list,
                                      FLAGS.batch_size, 1, 'data/vrd/images/test/', FLAGS.which_net).next()
 
@@ -45,23 +43,25 @@ if __name__ == '__main__':
     with session_init() as sess:
         tf.initialize_all_variables().run()
 
-        for mb, data_batch in enumerate(data_batcher):
+	for mb in range(10): 
+            data_batcher = load_data_batcher(FLAGS.train_mat, FLAGS.obj_list, FLAGS.rel_list, 
+                                             FLAGS.batch_size, FLAGS.meta_epochs, 'data/vrd/images/train/', FLAGS.which_net)
+            for db, data_batch in enumerate(data_batcher):
 
-            for b, (images, labels) in enumerate(data_batch):
-                feed_dict = {ground_truth: labels,
-                             images_var: images}
-                sess.run(train_op, feed_dict=feed_dict)
-                #sess.run([merged, train_op], feed_dict=feed_dict)
+                for b, (images, labels) in enumerate(data_batch):
+                    feed_dict = {ground_truth: labels,
+                                 images_var: images}
+                    sess.run(train_op, feed_dict=feed_dict)
+                    #sess.run([merged, train_op], feed_dict=feed_dict)
 
-            if mb % FLAGS.save_freq == 0:
-                accs = []
-                for test_images, test_labels in test_batcher:
-                    feed_dict = {ground_truth: test_labels,
-                                 images_var: test_images}
-                    batch_acc = sess.run(accuracy, feed_dict=feed_dict)
-                    accs.append(batch_acc)
+            #if mb % FLAGS.save_freq == 0:
+            accs = []
+            for test_images, test_labels in test_batcher:
+                feed_dict = {ground_truth: test_labels,
+                             images_var: test_images}
+                batch_acc = sess.run(accuracy, feed_dict=feed_dict)
+                accs.append(batch_acc)
 
-                print '\tmbatch {} acurracy: {}'.format(mb, mean(accs))
-                # net.save_npy(sess, file_path=FLAGS.save_path+'.checkpoint-{}-{}'.format(mb,b))
-
-        net.save_npy(sess, file_path=FLAGS.save_path)
+            print '\tmbatch {} acurracy: {}'.format(mb, mean(accs))
+            # net.save_npy(sess, file_path=FLAGS.save_path+'.checkpoint-{}-{}'.format(mb,b))
+            net.save_npy(sess, file_path=FLAGS.save_path)
