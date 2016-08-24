@@ -23,9 +23,9 @@ class CustomVgg16:
         self.var_dict = {}
         print 'npy file loaded'
 
-    def build(self, rgb_images_var, train=False, output_size=100):
-        rgb_scaled = rgb_images_var * 255.0
-        bgr_images_var = tf_rgb2bgr(rgb_scaled)
+    def build(self, bgr_images_var, train=False, output_size=100):
+        # rgb_scaled = rgb_images_var * 255.0
+        # bgr_images_var = tf_rgb2bgr(rgb_scaled)
 
         self.conv1_1 = self.conv_layer(bgr_images_var, 'conv1_1', train)
         self.conv1_2 = self.conv_layer(self.conv1_1,   'conv1_2', train)

@@ -1,10 +1,9 @@
-from skimage.transform import resize
-from skimage.io import imread
+# from skimage.transform import resize
+# from skimage.io import imread
 import pickle
 import numpy as np
 import scipy.io as spio
-from cv2 import cvtColor, COLOR_RGB2BGR
-import inspect
+from cv2 import imread, resize
 import tensorflow as tf
 
 
@@ -300,7 +299,7 @@ def get_data(mat_data, obj_dict, rel_dict, img_dir, mean_file='mean.npy'):
 
     for datum in mat_data:
         if not hasattr(datum, 'relationship'):
-            print 'skipping image {}, no relationship'.format(datum.filename)
+            print 'skipping image {}, no relationship'.format(img_dir + datum.filename)
             continue
         img_rels = datum.relationship
         if not hasattr(img_rels, '__getitem__'):
@@ -310,7 +309,6 @@ def get_data(mat_data, obj_dict, rel_dict, img_dir, mean_file='mean.npy'):
             img_rels = [img_rels]
 
         img = imread(img_dir + datum.filename)
-        img = cvtColor(img, COLOR_RGB2BGR)
         # print datum.filename; print img.shape
         for rel in img_rels:
             ymin1, ymax1, xmin1, xmax1 = rel.subBox
@@ -421,8 +419,8 @@ def tf_rgb2bgr(rgb):
 
 
 def load_data_batcher(mat_path, obj_list_path, rel_list_path,
-                      batch_size=10, meta_epochs=20,
-                      img_dir='data/vrd/images/train/', which_net='objnet'):
+                      batch_size=10, meta_epochs=20, which_net='objnet',
+                      img_dir='data/vrd/images/train/', mean_file='mean.npy'):
     obj_dict = {r:i for i,r in enumerate(loadmat(obj_list_path)['objectListN'])}
     rel_dict = {r:i for i,r in enumerate(loadmat(rel_list_path)['predicate'])}
 

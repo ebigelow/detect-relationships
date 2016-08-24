@@ -11,14 +11,16 @@ python train_cnn.py                                     \
   -gpu_mem_fraction 0.9                                 \
   -output_size 100                                      \
   -init_path "data/models/vgg16.npy"                    \
-  -save_path "data/models/objnet/vgg16_trained.npy"     \
+  -save_path "data/models/objnet/vgg16_trained_fix.npy"     \
   -batch_size 10                                        \
   -save_freq 1                                          \
-  -meta_epochs 20                                       \
-  -obj_list  "data/vrd/objectListN.mat"                 \
-  -rel_list  "data/vrd/predicate.mat"                   \
-  -train_mat "data/vrd/annotation_train.mat"            \
-  -test_mat  "data/vrd/annotation_test.mat"             
+  -meta_epochs 10                                       \
+  -obj_list   "data/vrd/objectListN.mat"                \
+  -rel_list   "data/vrd/predicate.mat"                  \
+  -train_mat  "data/vrd/annotation_train.mat"           \
+  -test_mat   "data/vrd/annotation_test.mat"            \
+  -train_imgs "data/vrd/images/train/"                  \
+  -test_imgs  "data/vrd/images/test/"                   \
+  -mean       "./mean.npy"
 
-#python train_cnn.py -gpu_mem_fraction 0.7 -output_size 100 -init_path "data/models/objnet/vgg16.npy" -save_path "data/models/objnet/vgg16_trained.npy" -batch_size 10 -save_freq 10 -meta_epochs 20 -obj_list "data/vrd/objectListN.mat" -rel_list "data/vrd/predicate.mat" -train_mat "data/vrd/annotation_train.mat" -test_mat "data/vrd/annotation_test.mat" 
-
+#python train_cnn.py -gpu_mem_fraction 0.7 -output_size 100 -init_path "data/models/objnet/vgg16.npy" -save_path "data/models/objnet/vgg16_trained.npy" -batch_size 10 -save_freq 10 -meta_epochs 20 -obj_list "data/vrd/objectListN.mat" -rel_list "data/vrd/predicate.mat" -train_mat "data/vrd/annotation_train.mat" -test_mat "data/vrd/annotation_test.mat"
