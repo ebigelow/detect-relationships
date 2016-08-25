@@ -419,15 +419,15 @@ def tf_rgb2bgr(rgb):
 
 
 def load_data_batcher(mat_path, obj_list_path, rel_list_path,
-                      batch_size=10, meta_epochs=20, which_net='objnet',
+                      batch_size=10, data_epochs=20, which_net='objnet',
                       img_dir='data/vrd/images/train/', mean_file='mean.npy'):
     obj_dict = {r:i for i,r in enumerate(loadmat(obj_list_path)['objectListN'])}
     rel_dict = {r:i for i,r in enumerate(loadmat(rel_list_path)['predicate'])}
 
     mat = loadmat(mat_path)[mat_path.split('/')[-1].split('.')[0]]
 
-    batch_len = np.ceil(float(len(mat)) / meta_epochs).astype(int)
-    for e in range(meta_epochs):
+    batch_len = np.ceil(float(len(mat)) / data_epochs).astype(int)
+    for e in range(data_epochs):
         meta_batch_data = mat[e*batch_len : (e+1)*batch_len]
         # obj_test, rel_test = get_data(a_test, obj_dict, rel_dict, 'data/vrd/images/test/')
         obj_meta, rel_meta = get_data(meta_batch_data, obj_dict, rel_dict, img_dir)

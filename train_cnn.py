@@ -16,6 +16,7 @@ tf.app.flags.DEFINE_string('save_path', 'data/models/objnet/vgg16_trained_.npy',
 
 tf.app.flags.DEFINE_integer('batch_size',  10, '')
 tf.app.flags.DEFINE_integer('save_freq',   1, '')
+tf.app.flags.DEFINE_integer('data_epochs', 20, '')
 tf.app.flags.DEFINE_integer('meta_epochs', 20, '')
 
 tf.app.flags.DEFINE_string('obj_list',  'data/vrd/objectListN.mat',      '')
@@ -48,10 +49,10 @@ if __name__ == '__main__':
     with session_init() as sess:
         tf.initialize_all_variables().run()
 
-        for e in range(10):
+        for e in range(FLAGS.meta_epochs):
             print 'Beginning epoch {}'.format(e)
             data_batcher = load_data_batcher(FLAGS.train_mat, FLAGS.obj_list, FLAGS.rel_list,
-                                             FLAGS.batch_size, FLAGS.meta_epochs, FLAGS.which_net,
+                                             FLAGS.batch_size, FLAGS.data_epochs, FLAGS.which_net,
                                              FLAGS.train_imgs, FLAGS.mean )
             for db, data_batch in enumerate(data_batcher):
 
@@ -69,6 +70,6 @@ if __name__ == '__main__':
                 batch_acc = sess.run(accuracy, feed_dict=feed_dict)
                 accs.append(batch_acc)
 
-            print '\tepoch {} acurracy: {}'.format(e, mean(accs))
+            print ' => epoch {} acurracy: {}'.format(e, mean(accs))
             # net.save_npy(sess, file_path=FLAGS.save_path+'.checkpoint-{}-{}'.format(mb,b))
             net.save_npy(sess, file_path=FLAGS.save_path)
