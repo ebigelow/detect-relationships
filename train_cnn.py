@@ -12,7 +12,7 @@ tf.app.flags.DEFINE_integer('output_size', 100, 'Size of final output layer')
 tf.app.flags.DEFINE_string('which_net', 'objnet', '')
 
 tf.app.flags.DEFINE_string('init_path', 'data/models/vgg16.npy', 'Initial weights')
-tf.app.flags.DEFINE_string('save_path', 'data/models/objnet/vgg16_trained.npy', 'Save weights to this file')
+tf.app.flags.DEFINE_string('save_path', 'data/models/objnet/vgg16_trained_.npy', 'Save weights to this file')
 
 tf.app.flags.DEFINE_integer('batch_size',  10, '')
 tf.app.flags.DEFINE_integer('save_freq',   1, '')
@@ -32,7 +32,7 @@ FLAGS = tf.app.flags.FLAGS
 if __name__ == '__main__':
     test_batch = load_data_batcher(FLAGS.test_mat, FLAGS.obj_list, FLAGS.rel_list,
                                    FLAGS.batch_size, 1, FLAGS.which_net,
-                                   FLAGS.train_imgs, FLAGS.mean  ).next()
+                                   FLAGS.test_imgs, FLAGS.mean  ).next()
 
     images_var = tf.placeholder('float', [FLAGS.batch_size, 224, 224, 3])
     net = CustomVgg16(FLAGS.init_path)
@@ -48,7 +48,7 @@ if __name__ == '__main__':
     with session_init() as sess:
         tf.initialize_all_variables().run()
 
-    for e in range(10):
+        for e in range(10):
             print 'Beginning epoch {}'.format(e)
             data_batcher = load_data_batcher(FLAGS.train_mat, FLAGS.obj_list, FLAGS.rel_list,
                                              FLAGS.batch_size, FLAGS.meta_epochs, FLAGS.which_net,
