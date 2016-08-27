@@ -1,10 +1,18 @@
 # from skimage.transform import resize
 # from skimage.io import imread
 import pickle
+import os
 import numpy as np
 import scipy.io as spio
 from cv2 import imread, resize
 import tensorflow as tf
+
+
+
+
+
+
+
 
 
 # ---------------------------------------------------------------------------------------------------------
@@ -141,22 +149,6 @@ def make_w2v(word_list, w2v_bin='data/GoogleNews-vectors-negative300.bin'):
 
 # ---------------------------------------------------------------------------------------------------------
 # Scene graph stuff
-# -----------------
-# >> oc = sum(len(sg.objects) for sg in scene_graphs)
-# >> rc = sum(len(sg.relationships) for sg in scene_graphs)
-# >> print oc, rc
-#
-# Pruned Objects
-#   In [29]: 998782 / 3319187.
-#   Out[29]: 0.30091163890434613
-#
-# Pruned Relationships
-#   In [30]: 848001 / 2032830.
-#   Out[30]: 0.4171529345788876
-#
-# 2320405 -> 1753128
-# 1184829 -> 517156
-
 
 def prune_scenes(scene_graphs, rword_fname='data/pk/rel_words.pk',
                  ofilter_fname='data/pk/obj_counts.pk', rfilter_fname='data/pk/rel_counts.pk'):
@@ -275,23 +267,7 @@ def _todict(matobj):
 
 # ---------------------------------------------------------------------------------------------------------
 # .mat files to data
-# ------------------
-#
-# obj_dict = {r:i for i,r in enumerate(loadmat('objectListN.mat')['objectListN'])}
-# rel_dict = {r:i for i,r in enumerate(loadmat('predicate.mat')['predicate'])}
-#
-# a_test  = loadmat('annotation_test.mat')['annotation_test']
-# a_train = loadmat('annotation_train.mat')['annotation_train']
-#
-# obj_train, rel_train = get_data(a_train, obj_dict, rel_dict)
-# obj_test, rel_test = get_data(a_test, obj_dict, rel_dict)
-#
-#
-# img_name = a_test[0].filename
-# img_rels = a_test[0].relationship
-# rel = img_rels[0]
-# s,v,o = rel.phrase
-# print rel.subBox, rel.objBox
+
 
 def get_data(mat_data, obj_dict, rel_dict, img_dir, mean_file='mean.npy'):
     obj_data = []
@@ -309,7 +285,7 @@ def get_data(mat_data, obj_dict, rel_dict, img_dir, mean_file='mean.npy'):
             img_rels = [img_rels]
 
         img = imread(img_dir + datum.filename)
-        # print datum.filename; print img.shape
+        # print img_dir+datum.filename; print img.shape
         for rel in img_rels:
             ymin1, ymax1, xmin1, xmax1 = rel.subBox
             ymin2, ymax2, xmin2, xmax2 = rel.objBox
@@ -376,46 +352,7 @@ def parse_scenes(scene_graphs):
 
 
 # ---------------------------------------------------------------------------------------------------------
-# NEW
-
-
-import skimage
-
-def load_image(path):
-    """
-    returns image of shape [224, 224, 3]
-    [height, width, depth]
-
-    From: https://github.com/machrisaa/tensorflow-vgg/blob/master/utils.py
-
-    """
-    # load image
-    img = skimage.io.imread(path)
-    img = img / 255.0
-    assert (0 <= img).all() and (img <= 1.0).all()
-    # print 'Original Image Shape: ', img.shape
-    # we crop image from center
-    short_edge = min(img.shape[:2])
-    yy = int((img.shape[0] - short_edge) / 2)
-    xx = int((img.shape[1] - short_edge) / 2)
-    crop_img = img[yy: yy + short_edge, xx: xx + short_edge]
-    # resize to 224, 224
-    resized_img = skimage.transform.resize(crop_img, (224, 224))
-    return resized_img
-
-
-VGG_MEAN = [103.939, 116.779, 123.68]
-
-def tf_rgb2bgr(rgb):
-    # Convert RGB to BGR
-    red, green, blue = tf.split(3, 3, rgb)
-    bgr = tf.concat(3, [
-        blue - VGG_MEAN[0],
-        green - VGG_MEAN[1],
-        red - VGG_MEAN[2],
-    ])
-    return bgr
-
+# For `train_cnn.py`
 
 
 def load_data_batcher(mat_path, obj_list_path, rel_list_path,
@@ -461,58 +398,57 @@ def test_cnn(net, ground_truth, N_test=1000, which_net='objnet',
 
 
 
+# ---------------------------------------------------------------------------------------------------------
+# For `extract_cnn.py`
 
-#
-#
-# def train_cnn(net, ground_truth, N_test=100, which_net='objnet',
-#               obj_list_path='data/vrd/objectListN.mat', rel_list_path='data/vrd/predicate.mat',
-#               train_mat_path='data/vrd/annotation_test.mat', train_images_dir='data/vrd/images/train/',
-#               test_mat_path='data/vrd/annotation_test.mat', test_images_dir='data/vrd/images/train/',
-#               gpu_mem_fraction=0.9, output_size = 100,
-#               init_path='data/models/objnet/vgg16.npy', save_path = 'data/models/objnet/vgg16_trained2.npy'):
-#
-#
-#
-#
-#
-#     batch_size = 10
-#     save_freq = 200
-#     meta_epochs = 20
-#
-#     obj_list  = 'data/vrd/objectListN.mat'
-#     rel_list  = 'data/vrd/predicate.mat'
-#     train_mat = 'data/vrd/annotation_train.mat'
-#     test_mat  = 'data/vrd/annotation_test.mat'
-#
-#     data_batcher = load_data_batcher(train_mat_path, obj_list_path, rel_list_path,
-#                                      batch_size, meta_epochs, which_net)
-#     data_test = load_data_batcher(test_mat_path, obj_list_path, rel_list_path,
-#                                   1000, 1, images_dir, which_net)
-#     data_test = data_test
-#
-#
-#     images_var = tf.placeholder('float', [batch_size, 224, 224, 3])
-#     net = CustomVgg16(init_path)
-#     net.build(images_var, train=True, output_size=output_size)
-#
-#     ground_truth, cost, train_op = net.get_train_op()
-#
-#     # TODO: should this be here?
-#     merged = tf.merge_all_summaries()
-#
-#     gpu_fraction = tf.GPUOptions(per_process_gpu_memory_fraction=gpu_mem_fraction)
-#     session_init = lambda: tf.Session(config=tf.ConfigProto(gpu_options=(gpu_fraction)))
-#
-#     with session_init() as sess:
-#         tf.initialize_all_variables().run()
-#         for mb, data_batch in enumerate(data_batcher):
-#             for b, (images, labels) in enumerate(data_batch):
-#                 feed_dict = {ground_truth: labels,
-#                              images_var: images}
-#                 # sess.run([merged, train_op], feed_dict=feed_dict)
-#                 sess.run(train_op, feed_dict=feed_dict)
-#                 if b % save_freq == 0:
-#                     batch_cost = sess.run(cost, feed_dict=feed_dict)
-#                     print '\tbatch {}-{} cost: {}'.format(mb, b, batch_cost), batch_cost.shape
-#                     net.save_npy(sess, file_path=save_path+'.checkpoint-{}-{}'.format(mb,b))
-#         net.save_npy(sess, file_path=save_path)
+
+def batch_images(uid2imdata, img_dir, mean, batch_len=10, crop_size=224):
+
+    im_path = lambda fn: os.path.join(img_dir, fn)
+    items = uid2imdata.items()
+
+    for b in xrange(0, len(items), batch_len):
+
+        batch_uids, (batch_coords, batch_fnames) = zip(*items[b:b + batch_len])
+        batch_imgs   = [imread(im_path(fn)) - mean for fn in batch_fnames]
+        batch_imdata = zip(batch_imgs, batch_coords)
+
+        batch_crops  = [square_crop(img, crop_size, *coords)[None, ...] for img, coords in batch_imdata]
+        batch_crops  = np.concatenate(batch_crops, axis=0)
+        batch_crops -= mean
+
+        idx2uid = {idx:uid for idx, uid in enumerate(batch_uids)}
+
+        # TODO: make sure idxs refer to original imgs, not padding
+        pad_len = batch_len - len(batch_uids)
+        if pad_len > 0:
+            pad_imgs = np.zeros(pad_len, crop_size, crop_size, 3)
+            batch_crops = np.concatenate([batch_crops, pad_imgs], axis=0)
+
+        yield idx2uid, batch_crops
+
+
+def add_to_dict(key, item, D):
+    if key in D:
+        return D
+    else:
+        D[key] = item
+        return D
+
+def get_uid2imdata(scene_graphs):
+    uid2coords = {}
+
+    for sg in scene_graphs:
+        get_objid = lambda x: sg.image.id + '_' + x.id
+        get_relid = lambda y: frozenset([get_objid(y.subject), get_objid(y.object)])
+        fname = sg.image.filename
+
+        for o in sg.objects:
+            uid = get_objid(o)
+            coords = (o.x, o.y, o.width, o.height)
+            uid2coords = add_to_dict(uid, (fname, coords), uid2coords)
+
+        for r in sg.relationships:
+            uid = get_relid(r)
+            coords = (r.x, r.y, r.width, r.height)
+            uid2coords = add_to_dict(uid, (fname, coords), uid2coords)
