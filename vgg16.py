@@ -21,7 +21,7 @@ class CustomVgg16:
 
         self.data_dict = np.load(vgg16_npy_path).item()
         self.var_dict = {}
-        print 'npy file loaded'
+        print 'npy file loaded from', vgg16_npy_path
 
     def build(self, bgr_images_var, train=False, output_size=100):
         # rgb_scaled = rgb_images_var * 255.0

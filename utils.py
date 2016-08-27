@@ -369,7 +369,7 @@ def load_data_batcher(mat_path, obj_list_path, rel_list_path,
         # obj_test, rel_test = get_data(a_test, obj_dict, rel_dict, 'data/vrd/images/test/')
         obj_meta, rel_meta = get_data(meta_batch_data, obj_dict, rel_dict, img_dir)
 
-        if which_net is 'objnet':
+        if which_net == 'objnet':
             yield batchify_data(obj_meta, batch_size)
         else:
             yield batchify_data(rel_meta, batch_size)

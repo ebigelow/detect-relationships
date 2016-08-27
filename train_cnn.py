@@ -31,9 +31,6 @@ tf.app.flags.DEFINE_string('mean',       'mean.npy',               '')
 FLAGS = tf.app.flags.FLAGS
 
 if __name__ == '__main__':
-    test_batch = load_data_batcher(FLAGS.test_mat, FLAGS.obj_list, FLAGS.rel_list,
-                                   FLAGS.batch_size, 1, FLAGS.which_net,
-                                   FLAGS.test_imgs, FLAGS.mean  ).next()
 
     images_var = tf.placeholder('float', [FLAGS.batch_size, 224, 224, 3])
     net = CustomVgg16(FLAGS.init_path)
@@ -45,6 +42,8 @@ if __name__ == '__main__':
 
     gpu_fraction = tf.GPUOptions(per_process_gpu_memory_fraction=FLAGS.gpu_mem_fraction)
     session_init = lambda: tf.Session(config=tf.ConfigProto(gpu_options=(gpu_fraction)))
+
+    best_acc = 0.0
 
     with session_init() as sess:
         tf.initialize_all_variables().run()
@@ -62,14 +61,20 @@ if __name__ == '__main__':
                     sess.run(train_op, feed_dict=feed_dict)
                     #sess.run([merged, train_op], feed_dict=feed_dict)
 
-            #if mb % FLAGS.save_freq == 0:
+            test_batcher = load_data_batcher(FLAGS.test_mat, FLAGS.obj_list, FLAGS.rel_list,
+                                             FLAGS.batch_size, FLAGS.data_epochs, FLAGS.which_net,
+                                             FLAGS.test_imgs, FLAGS.mean  )
             accs = []
-            for test_images, test_labels in test_batch:
-                feed_dict = {ground_truth: test_labels,
-                             images_var: test_images}
-                batch_acc = sess.run(accuracy, feed_dict=feed_dict)
-                accs.append(batch_acc)
+            for test_batch in test_batcher:
+                for test_images, test_labels in test_batch:
+                    feed_dict = {ground_truth: test_labels,
+                                 images_var: test_images}
+                    batch_acc = sess.run(accuracy, feed_dict=feed_dict)
+                    accs.append(batch_acc)
 
-            print ' => epoch {} acurracy: {}'.format(e, mean(accs))
-            # net.save_npy(sess, file_path=FLAGS.save_path+'.checkpoint-{}-{}'.format(mb,b))
-            net.save_npy(sess, file_path=FLAGS.save_path)
+            acc = mean(accs)
+            print ' => epoch {} acurracy: {}'.format(e, acc)
+            if acc > best_acc:
+                best_acc = acc
+                net.save_npy(sess, file_path=FLAGS.save_path)
+
