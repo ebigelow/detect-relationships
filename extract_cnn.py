@@ -13,14 +13,15 @@ tf.app.flags.DEFINE_float('gpu_mem_fraction', 0.9, '')
 tf.app.flags.DEFINE_integer('output_size', 100, '')
 tf.app.flags.DEFINE_integer('batch_size',  10,  '')
 
-tf.app.flags.DEFINE_string('weights',    'data/models/objnet/vgg16_trained.npy', 'Load weights from this file')
+tf.app.flags.DEFINE_string('weights',    'data/models/objnet/vgg16_trained3.npy', 'Load weights from this file')
 tf.app.flags.DEFINE_string('save_file',  'data/models/objnet/feature_dict.npy',  'Save layer output here')
 
-tf.app.flags.DEFINE_string('json_file', 'data/vrd/json/test.json', '')
+tf.app.flags.DEFINE_string('json_file', 'data/vrd/json/train.json', '')
 tf.app.flags.DEFINE_string('img_dir',   'data/vrd/images/train/',  '')
 tf.app.flags.DEFINE_string('mean_file', 'mean.npy',                '')
 
 FLAGS = tf.app.flags.FLAGS
+
 
 if __name__ == '__main__':
 
