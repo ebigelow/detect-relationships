@@ -1,50 +1,55 @@
 
-import sys, os
-from cv2 import imread
-from utils import *
+# from utils import *
 import numpy as np
-import tensorflow as tf
 from numpy.random import randint
 from scipy.spatial.distance import cosine
-import pickle
-sys.path.append('/u/ebigelow/lib/caffe-tensorflow')
+from tqdm import tqdm, trange
 
 
 class Model:
     """
     Arguments
     ---------
-    w2v : w2v = (100 + 70, 300)  numpy vector, 1 for each word, then 1 for each predicate
-    obj_probs : obj_probs[rel_index] = (100,) final layer cnn output
-    rel_feats : rel_feats[rel_index] = (4096,) fc7 feature (PRESUMABLY this was used . . .)
-    obj_dict : match image-specific object id to index in obj_probs
-    rel_dict : match image-specific relationship id to index in rel_feats
+    w2v : w2v = (100 + 70, 300)  numpy vector, 1 for each object (100), then 1 for each predicate (70)
+    word2idx : map words to obj/pred index; w2i['obj']['llama'] == 42
 
-    init_type : TODO
+    ----
+    TODO - turn w2v into a dictionary, map uid to w2v
+    ----
+
+    obj_probs : obj_probs[obj_uid] = (100,) final layer cnn output
+    rel_feats : rel_feats[rel_uid] = (4096,) fc7 feature (PRESUMABLY this was used . . .)
+
     num_samples : number of random R samples to compute for equation 4
-
-    noise : initialization noise
+    noise : weight initialization variance (gaussian)
     lamb1 : weight of eq 5 in eq 7
     lamb2 : weight of eq 4 in eq 7
+
+    Attributes
+    ----------
+
+    n : number of objects
+    k : number of predicates
+    W,b : language model weight & bias
+    Z,s : visual model weight & bias
+    R_samples : list of random (R, O1, O2) samples generated for equation 4
 
 
     TODO
     ----
+    - change all object uids to `imageid_objectid`
     - should we only compute `R_samples` as needed? or for each call to K?
 
 
+
     """
-    def __init__(self, obj_probs, rel_feats, obj_dict, rel_dict,
-                 w2v, w2v_dict, n,
-                 init_type='TODO', noise=0.05, learning_rate=1.0, max_iters=20,
+    def __init__(self, obj_probs, rel_feats, w2v, word2idx,
+                 noise=0.05, learning_rate=1.0, max_iters=20,
                  num_samples=500000, lamb1=0.05, lamb2=0.001):
         self.obj_probs     = obj_probs
         self.rel_feats     = rel_feats
-        self.obj_dict      = obj_dict
-        self.rel_dict      = rel_dict
         self.w2v           = w2v
-        self.w2v_dict      = w2v_dict
-        self.init_type     = init_type
+        self.word2idx      = word2idx
         self.noise         = noise
         self.learning_rate = learning_rate
         self.max_iters     = max_iters
@@ -52,17 +57,19 @@ class Model:
         self.lamb1         = lamb1
         self.lamb2         = lamb2
 
-        self.n = n
-        self.k = w2v.shape[0] - n
+        self.n = obj_probs.values()[0].shape[0]
+        self.k = rel_feats.values()[0].shape[0]
+
         self.init_weights()
         self.init_R_samples()
 
+
     def init_weights(self):
-        ndim = self.rel_feats.shape[1]
-        ndim, v, k = (self.noise, self.k)
+        nfeats = self.rel_feats.shape[1]
+        nfeats, v, k = (self.noise, self.k)
         self.W = v * np.random.rand(k, 600)
         self.b = v * np.random.rand(k, 1)
-        self.Z = v * np.random.rand(k, ndim)
+        self.Z = v * np.random.rand(k, nfeats)
         self.s = v * np.random.rand(k, 1)
 
 
@@ -76,19 +83,8 @@ class Model:
         R_pairs = [(R_rand(), R_rand()) for n in range(S)]
         self.R_samples = R_pairs
 
-    def convert_rel(self, rel):
-        """
-        Converting training data `Relationship` instance to `<i,j,k>` format.
 
-        """
-        i = self.w2v_dict['obj'][rel.subject.names[0]]
-        j = self.w2v_dict['obj'][rel.object.names[0]]
-        k = self.w2v_dict['rel'][rel.predicate]
-        return i,j,k
-
-    def word_vec(self, i, j):
-        return np.concatenate((self.w2v[i], self.w2v[j]))
-
+    # -------------------------------------------------------------------------------------------------------
 
     def w2v_dist(self, R1, R2):
         N, w2v = (self.n, self.w2v)
@@ -119,12 +115,10 @@ class Model:
     def V(self, R, O1, O2, Z, s):
         i,j,k = R
 
-        O1_id  = self.obj_dict[O1]
-        O2_id  = self.obj_dict[O2]
         rel_id = self.rel_dict[frozenset([O1, O2])]
 
-        P_i = self.obj_probs[O1_id, i]
-        P_j = self.obj_probs[O2_id, j]
+        P_i = self.obj_probs[O1][i]
+        P_j = self.obj_probs[O2][j]
         cnn = self.rel_feats[rel_id]
         P_k = np.dot(Z[k], cnn) + s[k]
         return P_i * P_j * P_k
@@ -191,19 +185,23 @@ class Model:
         V, f, d = (self.V, self.f, self.d)
         W, b, Z, s = (self.W, self.b, self.Z, self.s)
 
-        for i in range(self.max_iters):
-            if i % 20 == 0:
-                print 'SGD iteration [{}]'.format(i)
+        for epoch in range(self.max_iters):
 
+            # Shuffle data
             D = sorted(D, key=lambda x: np.random.rand())
-            mc = 0.0
+
+            # Use to get change in cost
+            mc      = 0.0
             mc_prev = 1.0
 
-            for R, O1, O2 in D:
-                # Get max item
+            # Iterate over data points (stochastically)
+            for R, O1, O2 in tqdm(D):
+
+                # Get 2nd data point that maximizes equation ??? TODO
                 D_ = [(R_,O1_,O2_) for R_,O1_,O2_ in D if (R_ != R) and (O1_ != O1 or O2_ != O2)]
                 M = sorted(D_, key=lambda (R,O1,O2): V(R,O1,O2,Z,s) * f(R,W,b))
                 R_,O1_,O2_ = M[0]
+
                 i,j,k = R
                 i_,j_,k_ = R_
 
@@ -237,17 +235,13 @@ class Model:
                 else:
                     # Equation 6
                     if cost > 0:
-                        id_o1  = self.obj_dict[O1]
-                        id_o2  = self.obj_dict[O2]
-                        id_o1_ = self.obj_dict[O1_]
-                        id_o2_ = self.obj_dict[O2_]
-                        id_r   = self.rel_dict[frozenset([O1, O2])]
-                        id_r_  = self.rel_dict[frozenset([O1_, O2_])]
+                        id_r   = frozenset([O1, O2])
+                        id_r_  = frozenset([O1_, O2_])
 
-                        Z[k]  -= self.learning_rate * f(R,W,b) * obj_probs[id_o1,i] * obj_probs[id_o2,j] * rel_feats[id_r]
-                        s[k]  -= self.learning_rate * f(R,W,b) * obj_probs[id_o1,i] * obj_probs[id_o2,j]
-                        Z[k_] += self.learning_rate * f(R_,W,b)  * obj_probs[id_o1_,i_] * obj_probs[id_o2_,j_] * rel_feats[id_r_]
-                        s[k_] += self.learning_rate * f(R_,W,b)  * obj_probs[id_o1_,i_] * obj_probs[id_o2_,j_]
+                        Z[k]  -= self.learning_rate * f(R,W,b) * obj_probs[O1][i] * obj_probs[O2][j] * rel_feats[id_r]
+                        s[k]  -= self.learning_rate * f(R,W,b) * obj_probs[O1][i] * obj_probs[O2][j]
+                        Z[k_] += self.learning_rate * f(R_,W,b)  * obj_probs[O1_][i_] * obj_probs[O2_][j_] * rel_feats[id_r_]
+                        s[k_] += self.learning_rate * f(R_,W,b)  * obj_probs[O1_][i_] * obj_probs[O2_][j_]
 
             # Equation 4
             if i % 2 == 0:
@@ -267,39 +261,23 @@ class Model:
                 # TODO: separate `W[k] += ...` and `W[k_] -= ...`
                 W += self.learning_rate * dK_dW
 
-            print '\tchange in cost: {}'.format(mc_prev - mc)
+            print '\tit {} | change in cost: {}'.format(epoch, mc_prev - mc)
             mc_prev = mc
 
         self.W, self.b, self.Z, self.s = (W, b, Z, s)
         return W, b, Z, s
 
 
-    def load_data(self, scene_graphs):
-        """
-        Load a list of data triplets, one for each scene graph: (R, O1, O2)
+    # -------------------------------------------------------------------------------------------------------
+    # Helper Methods
 
-        """
-        obj_names = set([o.names[0] for sg in scene_graphs for o in sg.objects])
-        rel_names = set([r.predicate for sg in scene_graphs for r in sg.relationships])
-        obj_w2id  = {n:i for i,n in enumerate(obj_names)}
-        rel_w2id  = {n:i for i,n in enumerate(rel_names)}
+    def word_vec(self, i, j):
+        return np.concatenate((self.w2v[i], self.w2v[j]))
 
-        D = []
-        for sg in scene_graphs:
-            img_id = sg.image.id
-            for rel in sg.relationships:
-                R = self.convert_rel(rel)
-                O1 = id_(img_id, rel.subject.id)
-                O2 = id_(img_id, rel.object.id)
-                D.append((R, O1, O2))
-
-        self.obj_names, self.rel_names = (obj_names, rel_names)
-        self.obj_w2id,  self.rel_w2id  = (obj_w2id,  rel_w2id)
-        return D
 
 
     # -------------------------------------------------------------------------------------------------------
-    # UNUSED METHODS
+    # Unused
 
     def K(self):
         """  UNUSED

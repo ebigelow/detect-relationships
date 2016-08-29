@@ -106,7 +106,7 @@ def fix_names(scene_graphs):
     return scene_graphs
 
 
-def make_word_list(scene_graphs, N=26, K=12):
+def make_word_list(scene_graphs, N=100, K=70):
     """
     TODO - describe
 
@@ -128,23 +128,53 @@ def make_word_list(scene_graphs, N=26, K=12):
     return word_list
 
 
-def make_w2v_dict(word_list):
+def make_word2idx(word_list):
     n = len(word_list['obj'])
     k = len(word_list['rel'])
 
     # Keep track of w2v word indexes
-    w2v_dict = {}
-    w2v_dict['obj'] = {word:i for i, word in enumerate(word_list['obj'])}
-    w2v_dict['rel'] = {word:i for i, word in enumerate(word_list['rel'])}
-    return w2v_dict
+    word2idx = {}
+    word2idx['obj'] = {word:i for i, word in enumerate(word_list['obj'])}
+    word2idx['rel'] = {word:i for i, word in enumerate(word_list['rel'])}
+    return word2idx
 
 
-def make_w2v(word_list, w2v_bin='data/GoogleNews-vectors-negative300.bin'):
+def make_w2v(word2idx, w2v_bin='data/GoogleNews-vectors-negative300.bin'):
     # Build matrix of w2v vectors
     import gensim.models as gm
     M = gm.Word2Vec.load_word2vec_format(w2v_bin, binary=True)
-    w2v = [M[word] for word in word_list['obj'] + word_list['rel']]
+    w2v = [M[word] for word in word2idx['obj'] + word2idx['rel']]
     return np.vstack(w2v)
+
+
+def convert_rel(self, rel, word2idx):
+    """
+    Converting training data `Relationship` instance to `<i,j,k>` format.
+
+    """
+    i = word2idx['obj'][rel.subject.names[0]]
+    j = word2idx['obj'][rel.object.names[0]]
+    k = word2idx['rel'][rel.predicate]
+    return i,j,k
+
+
+
+def sg_to_triplets(self, scene_graphs, word2idx):
+    """
+    Load a list of data triplets, one for each scene graph: (R, O1, O2)
+
+    """
+    D = []
+    for sg in scene_graphs:
+        img_id = sg.image.id
+        for rel in sg.relationships:
+            R = convert_rel(rel, word2idx)
+            O1 = id_(img_id, rel.subject.id)
+            O2 = id_(img_id, rel.object.id)
+            D.append((R, O1, O2))
+
+    return D
+
 
 
 # ---------------------------------------------------------------------------------------------------------
