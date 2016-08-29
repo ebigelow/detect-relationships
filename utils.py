@@ -149,10 +149,10 @@ def get_w2v(w, M):
     if s in M:
         return M[s]
     elif w == 'traffic light':
-        return 'traffic_signalization'
+        return M['traffic_signalization']
     else:
         ls = [x for x in  w.split(' ') if x not in removes]
-        return np.sum([M[word] for word in ls])
+        return reduce(np.add, [M[word] for word in ls])
 
 def make_w2v(word2idx, w2v_bin='data/GoogleNews-vectors-negative300.bin'):
     # Build matrix of w2v vectors
@@ -163,7 +163,7 @@ def make_w2v(word2idx, w2v_bin='data/GoogleNews-vectors-negative300.bin'):
     return np.vstack(obj_w2v + rel_w2v)
 
 
-def convert_rel(self, rel, word2idx):
+def convert_rel(rel, word2idx):
     """
     Converting training data `Relationship` instance to `<i,j,k>` format.
 
@@ -175,7 +175,7 @@ def convert_rel(self, rel, word2idx):
 
 
 
-def sg_to_triplets(self, scene_graphs, word2idx):
+def sg_to_triplets(scene_graphs, word2idx):
     """
     Load a list of data triplets, one for each scene graph: (R, O1, O2)
 
