@@ -79,6 +79,8 @@ def rel_coords(scene_graphs):
 # ---------------------------------------------------------------------------------------------------------
 # Word2Vec
 
+# TODO: these are for VG, not VRD
+
 def fix_r(r):
     if r.predicate == 'of':
         r.predicate = 'NULL'
@@ -139,12 +141,25 @@ def make_word2idx(word_list):
     return word2idx
 
 
+# TODO this fixes words for VRD only
+def get_w2v(w, M):
+    removes = ['of','the', 'to']
+
+    s = w.replace(' ','_')
+    if s in M:
+        return M[s]
+    elif w == 'traffic light':
+        return 'traffic_signalization'
+    else:
+        ls = [x for x in  w.split(' ') if x not in removes]
+        return np.sum([M[word] for word in ls])
+
 def make_w2v(word2idx, w2v_bin='data/GoogleNews-vectors-negative300.bin'):
     # Build matrix of w2v vectors
     import gensim.models as gm
     M = gm.Word2Vec.load_word2vec_format(w2v_bin, binary=True)
-    obj_w2v = [M[w] for w, i in sorted(word2idx['obj'].items(), key=lambda x: x[1])]
-    rel_w2v = [M[w] for w, i in sorted(word2idx['rel'].items(), key=lambda x: x[1])]
+    obj_w2v = [get_w2v(w,M) for w, i in sorted(word2idx['obj'].items(), key=lambda x: x[1])]
+    rel_w2v = [get_w2v(w,M) for w, i in sorted(word2idx['rel'].items(), key=lambda x: x[1])]
     return np.vstack(obj_w2v + rel_w2v)
 
 
