@@ -193,9 +193,10 @@ def sg_to_triplets(scene_graphs, word2idx):
 
 
 # TODO for mat data
-def mat_to_triplets(mat, word2idx):
+def mat_to_triplets(mat_data, word2idx):
     D = []
 
+    import ipdb; ipdb.set_trace()
     for datum in mat_data:
         if not hasattr(datum, 'relationship'):
             continue
@@ -206,8 +207,6 @@ def mat_to_triplets(mat, word2idx):
                 continue
             img_rels = [img_rels]
 
-        img = imread(img_dir + datum.filename)
-        # print img_dir+datum.filename; print img.shape
         img_id = datum.photo_id
         get_objid = lambda x: str(img_id) + '_' + str(x.id)
 

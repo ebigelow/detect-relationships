@@ -32,7 +32,7 @@ obj_probs = np.load(obj_file).item()
 rel_feats = np.load(rel_file).item()
 
 mat = loadmat(train_mat)['annotation_train']
-D = mat_to_triplets(train_mat, word2idx)
+D = mat_to_triplets(mat, word2idx)
 
 # --------------------------------------------------------------------------------------------------
 # Run model

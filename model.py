@@ -65,8 +65,8 @@ class Model:
 
 
     def init_weights(self):
-        nfeats = self.rel_feats.shape[1]
-        nfeats, v, k = (self.noise, self.k)
+        nfeats = self.rel_feats.values()[0].shape[0]
+        v, k = (self.noise, self.k)
         self.W = v * np.random.rand(k, 600)
         self.b = v * np.random.rand(k, 1)
         self.Z = v * np.random.rand(k, nfeats)
@@ -210,8 +210,8 @@ class Model:
                 mc  += cost / len(D)
 
 
-                # Update W,b
-                if i % 2 == 0:
+                # Even epochs --> update W,b
+                if epoch % 2 == 0:
                     # Equation 5
                     for R_2, O1_2, O2_2 in D:
                         i_2,j_2,k_2 = R_2
@@ -231,7 +231,7 @@ class Model:
                         b[k_] += self.learning_rate * v_
 
 
-                # Update Z,s
+                # Odd epochs --> update Z,s
                 else:
                     # Equation 6
                     if cost > 0:
@@ -244,7 +244,7 @@ class Model:
                         s[k_] += self.learning_rate * f(R_,W,b)  * obj_probs[O1_][i_] * obj_probs[O2_][j_]
 
             # Equation 4
-            if i % 2 == 0:
+            if epoch % 2 == 0:
                 print 'PART 3'
                 dKfun = sum(    (2. / d(R,R_,W,b)) *
                                 (f(R,W,b) - f(R_,W,b)) *
