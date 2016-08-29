@@ -3,11 +3,7 @@ import os
 import time
 import numpy as np
 import tensorflow as tf
-import skimage
-from utils import tf_rgb2bgr
 
-
-VGG_MEAN = [103.939, 116.779, 123.68]
 
 # From: https://github.com/machrisaa/tensorflow-vgg/issues/7
 class CustomVgg16:
