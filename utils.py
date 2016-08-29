@@ -143,8 +143,9 @@ def make_w2v(word2idx, w2v_bin='data/GoogleNews-vectors-negative300.bin'):
     # Build matrix of w2v vectors
     import gensim.models as gm
     M = gm.Word2Vec.load_word2vec_format(w2v_bin, binary=True)
-    w2v = [M[word] for word in word2idx['obj'] + word2idx['rel']]
-    return np.vstack(w2v)
+    obj_w2v = [M[w] for w, i in sorted(word2idx['obj'].items(), key=lambda x: x[1])]
+    rel_w2v = [M[w] for w, i in sorted(word2idx['rel'].items(), key=lambda x: x[1])]
+    return np.vstack(obj_w2v + rel_w2v)
 
 
 def convert_rel(self, rel, word2idx):
@@ -442,7 +443,7 @@ def batch_images(uid2imdata, img_dir, mean, batch_len=10, crop_size=224):
 
         batch_uids   = uids[b:b + batch_len]
         batch_coords = coords[b:b + batch_len]
-        batch_fnames = fnames[b:b + batch_len] 
+        batch_fnames = fnames[b:b + batch_len]
 
         batch_imgs   = [imread(im_path(fn)) - mean for fn in batch_fnames]
         batch_imdata = zip(batch_imgs, batch_coords)
@@ -488,4 +489,3 @@ def get_uid2imdata(scene_graphs):
             uid2coords = add_to_dict(uid, (fname, coords), uid2coords)
 
     return uid2coords
-
