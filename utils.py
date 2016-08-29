@@ -405,15 +405,19 @@ def test_cnn(net, ground_truth, N_test=1000, which_net='objnet',
 def batch_images(uid2imdata, img_dir, mean, batch_len=10, crop_size=224):
 
     im_path = lambda fn: os.path.join(img_dir, fn)
-    items = uid2imdata.items()
+    uids = uid2imdata.keys()
+    fnames, coords = zip(*uid2imdata.values())
 
-    for b in xrange(0, len(items), batch_len):
+    for b in xrange(0, len(uids), batch_len):
 
-        batch_uids, (batch_coords, batch_fnames) = zip(*items[b:b + batch_len])
+        batch_uids   = uids[b:b + batch_len]
+        batch_coords = coords[b:b + batch_len]
+        batch_fnames = fnames[b:b + batch_len] 
+
         batch_imgs   = [imread(im_path(fn)) - mean for fn in batch_fnames]
         batch_imdata = zip(batch_imgs, batch_coords)
 
-        batch_crops  = [square_crop(img, crop_size, *coords)[None, ...] for img, coords in batch_imdata]
+        batch_crops  = [square_crop(img, crop_size, *co)[None, ...] for img, co in batch_imdata]
         batch_crops  = np.concatenate(batch_crops, axis=0)
         batch_crops -= mean
 
@@ -422,7 +426,7 @@ def batch_images(uid2imdata, img_dir, mean, batch_len=10, crop_size=224):
         # TODO: make sure idxs refer to original imgs, not padding
         pad_len = batch_len - len(batch_uids)
         if pad_len > 0:
-            pad_imgs = np.zeros(pad_len, crop_size, crop_size, 3)
+            pad_imgs = np.zeros((pad_len, crop_size, crop_size, 3))
             batch_crops = np.concatenate([batch_crops, pad_imgs], axis=0)
 
         yield idx2uid, batch_crops
@@ -439,9 +443,9 @@ def get_uid2imdata(scene_graphs):
     uid2coords = {}
 
     for sg in scene_graphs:
-        get_objid = lambda x: sg.image.id + '_' + x.id
+        get_objid = lambda x: str(sg.image.id) + '_' + str(x.id)
         get_relid = lambda y: frozenset([get_objid(y.subject), get_objid(y.object)])
-        fname = sg.image.filename
+        fname = sg.image.url
 
         for o in sg.objects:
             uid = get_objid(o)
@@ -452,3 +456,6 @@ def get_uid2imdata(scene_graphs):
             uid = get_relid(r)
             coords = (r.x, r.y, r.width, r.height)
             uid2coords = add_to_dict(uid, (fname, coords), uid2coords)
+
+    return uid2coords
+
