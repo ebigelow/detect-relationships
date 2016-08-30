@@ -575,3 +575,36 @@ def get_uid2imdata(scene_graphs):
             uid2coords = add_to_dict(uid, (fname, coords), uid2coords)
 
     return uid2coords
+
+
+
+
+def get_uid2imdata2(mat):
+    uid2coords = {}
+
+    for datum in mat:
+        if not hasattr(datum, 'relationship'):
+            continue
+        img_rels = datum.relationship
+        if not hasattr(img_rels, '__getitem__'):
+            if not all(i in dir(img_rels) for i in ['objBox', 'phrase', 'subBox']):
+                continue
+            img_rels = [img_rels]
+
+        get_objid = lambda x: datum.filename + ':' + str(x.id)
+        get_relid = lambda y: frozenset([get_objid(y.subject), get_objid(y.object)])
+
+        for r in img_rels:
+            uid = get_relid(r)
+
+            ymin1, ymax1, xmin1, xmax1 = rel.subBox
+            ymin2, ymax2, xmin2, xmax2 = rel.objBox
+            ymin3, ymax3, xmin3, xmax3 = (min(ymin1, ymin2), max(ymax1, ymax2),
+                                          min(xmin1, xmin2), max(xmax1, xmax2))
+            h, w = (ymax - ymin, xmax - xmin)
+            y, x = (ymin, xmin)
+            coords = (x, y, w, h)
+
+            add_to_dict(uid, (datum.filename, coords), uid2coords)
+
+    return uid2coords

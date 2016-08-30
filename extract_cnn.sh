@@ -19,8 +19,10 @@ LAYER_NAME="fc7"
 
 BATCH_SIZE=100
 JSON_FILE="data/vrd/json/train.json"
+
+TRAIN_MAT="data/vrd/annotation_train.mat"
 IMG_DIR="data/vrd/images/train/"
 MEAN_FILE="./mean.npy"
 
 
-python extract_cnn.py --gpu_mem_fraction $GPU_FRACTION --output_size $OUTPUT_SIZE --layer $LAYER_NAME --WEIGHTS $WEIGHTS --save_file $SAVE_FILE --batch_size $BATCH_SIZE --mean_file $MEAN_FILE --json_file $JSON_FILE --img_dir $IMG_DIR
+python extract_cnn.py --gpu_mem_fraction $GPU_FRACTION --output_size $OUTPUT_SIZE --layer $LAYER_NAME --WEIGHTS $WEIGHTS --save_file $SAVE_FILE --batch_size $BATCH_SIZE --mean_file $MEAN_FILE --img_dir $IMG_DIR
