@@ -192,34 +192,6 @@ def sg_to_triplets(scene_graphs, word2idx):
     return D
 
 
-# TODO for mat data
-def mat_to_triplets(mat_data, word2idx):
-    D = []
-
-    import ipdb; ipdb.set_trace()
-    for datum in mat_data:
-        if not hasattr(datum, 'relationship'):
-            continue
-        img_rels = datum.relationship
-        if not hasattr(img_rels, '__getitem__'):
-            if not all(i in dir(img_rels) for i in ['objBox', 'phrase', 'subBox']):
-                print 'skipping relation, dir contains:', [_ for _ in dir(img_rels) if '_' not in _]
-                continue
-            img_rels = [img_rels]
-
-        img_id = datum.photo_id
-        get_objid = lambda x: str(img_id) + '_' + str(x.id)
-
-        for rel in img_rels:
-            R = convert_rel(rel, word2idx)
-            O1 = get_objid(rel.subject)
-            O2 = get_objid(rel.object)
-            D.append((R, O1, O2))
-
-    return D
-
-
-
 
 
 def get_data2(mat_data, obj_dict, rel_dict, img_dir, mean_file='mean.npy'):
@@ -519,15 +491,82 @@ def test_cnn(net, ground_truth, N_test=1000, which_net='objnet',
 # For `extract_cnn.py`
 
 
-def batch_images(uid2imdata, img_dir, mean, batch_len=10, crop_size=224):
+
+
+# def batch_images(uid2imdata, img_dir, mean, batch_len=10, crop_size=224):
+#
+#     im_path = lambda fn: os.path.join(img_dir, fn)
+#     uids = uid2imdata.keys()
+#     fnames, coords = zip(*uid2imdata.values())
+#
+#     for b in xrange(0, len(uids), batch_len):
+#
+#         batch_uids   = uids[b:b + batch_len]
+#         batch_coords = coords[b:b + batch_len]
+#         batch_fnames = fnames[b:b + batch_len]
+#
+#         batch_imgs   = [imread(im_path(fn)) - mean for fn in batch_fnames]
+#         batch_imdata = zip(batch_imgs, batch_coords)
+#
+#         batch_crops  = [square_crop(img, crop_size, *co)[None, ...] for img, co in batch_imdata]
+#         batch_crops  = np.concatenate(batch_crops, axis=0)
+#         batch_crops -= mean
+#
+#         idx2uid = {idx:uid for idx, uid in enumerate(batch_uids)}
+#
+#         # TODO: make sure idxs refer to original imgs, not padding
+#         pad_len = batch_len - len(batch_uids)
+#         if pad_len > 0:
+#             pad_imgs = np.zeros((pad_len, crop_size, crop_size, 3))
+#             batch_crops = np.concatenate([batch_crops, pad_imgs], axis=0)
+#
+#         yield idx2uid, batch_crops
+#
+#
+# def add_to_dict(key, item, D):
+#     if key in D:
+#         return D
+#     else:
+#         D[key] = item
+#         return D
+#
+# def get_uid2imdata(scene_graphs):
+#     uid2coords = {}
+#
+#     for sg in scene_graphs:
+#         get_objid = lambda x: str(sg.image.id) + '_' + str(x.id)
+#         get_relid = lambda y: frozenset([get_objid(y.subject), get_objid(y.object)])
+#         fname = sg.image.url
+#
+#         for o in sg.objects:
+#             uid = get_objid(o)
+#             coords = (o.x, o.y, o.width, o.height)
+#             uid2coords = add_to_dict(uid, (fname, coords), uid2coords)
+#
+#         for r in sg.relationships:
+#             uid = get_relid(r)
+#             coords = (r.x, r.y, r.width, r.height)
+#             uid2coords = add_to_dict(uid, (fname, coords), uid2coords)
+#
+#     return uid2coords
+
+
+
+
+
+
+
+
+
+
+def batch_images(imdata, img_dir, mean, batch_len=10, crop_size=224):
 
     im_path = lambda fn: os.path.join(img_dir, fn)
-    uids = uid2imdata.keys()
-    fnames, coords = zip(*uid2imdata.values())
+    fnames, labels, coords = zip(*imdata)
 
     for b in xrange(0, len(uids), batch_len):
 
-        batch_uids   = uids[b:b + batch_len]
+        batch_uids   = imdata[b:b + batch_len]
         batch_coords = coords[b:b + batch_len]
         batch_fnames = fnames[b:b + batch_len]
 
@@ -549,38 +588,15 @@ def batch_images(uid2imdata, img_dir, mean, batch_len=10, crop_size=224):
         yield idx2uid, batch_crops
 
 
-def add_to_dict(key, item, D):
-    if key in D:
-        return D
-    else:
-        D[key] = item
-        return D
-
-def get_uid2imdata(scene_graphs):
-    uid2coords = {}
-
-    for sg in scene_graphs:
-        get_objid = lambda x: str(sg.image.id) + '_' + str(x.id)
-        get_relid = lambda y: frozenset([get_objid(y.subject), get_objid(y.object)])
-        fname = sg.image.url
-
-        for o in sg.objects:
-            uid = get_objid(o)
-            coords = (o.x, o.y, o.width, o.height)
-            uid2coords = add_to_dict(uid, (fname, coords), uid2coords)
-
-        for r in sg.relationships:
-            uid = get_relid(r)
-            coords = (r.x, r.y, r.width, r.height)
-            uid2coords = add_to_dict(uid, (fname, coords), uid2coords)
-
-    return uid2coords
 
 
+def get_imdata(mat):
+    """
+    Use filename, phrase, & coords as UID, since there are no object/rel ids.
 
-
-def get_uid2imdata2(mat):
-    uid2coords = {}
+    """
+    obj_data = set()
+    rel_data = set()
 
     for datum in mat:
         if not hasattr(datum, 'relationship'):
@@ -591,20 +607,66 @@ def get_uid2imdata2(mat):
                 continue
             img_rels = [img_rels]
 
-        get_objid = lambda x: datum.filename + ':' + str(x.id)
-        get_relid = lambda y: frozenset([get_objid(y.subject), get_objid(y.object)])
+        for r in img_rels:
+            s,v,o = r.phrase
+            obj_data.update(( datum.filename, s,                box_to_coords(*r.subBox) ))
+            obj_data.update(( datum.filename, o,                box_to_coords(*r.objBox) ))
+            rel_data.update(( datum.filename, frozenset([s,o]), rel_to_coords(r)         ))
+
+    return obj_data, rel_data
+
+
+def box_to_coords(ymin, ymax, xmin, xmax):
+    return xmin, ymin, (xmax-xmin), (ymax-ymin)
+
+def rel_to_coords(rel):
+    ymin1, ymax1, xmin1, xmax1 = rel.subBox
+    ymin2, ymax2, xmin2, xmax2 = rel.objBox
+    ymin3, ymax3, xmin3, xmax3 = (min(ymin1, ymin2), max(ymax1, ymax2),
+                                  min(xmin1, xmin2), max(xmax1, xmax2))
+    h, w = (ymax3 - ymin3, xmax3 - xmin3)
+    y, x = (ymin3, xmin3)
+
+    return x, y, w, h
+
+
+def objs_to_reluid(O1, O2):
+    # TODO
+    # TODO: hashing function to convert O1, O2 -> rel_uid
+    # TODO
+    fname, o1, coords1 = O1
+    fname, o2, coords2 = O2
+
+    x1, y1, w1, h1 = coords1
+    x2, y2, w2, h2 = coords2
+    ymin, ymax, xmin, xmax = (min(y1, y2), max(y1+h1, y2+h2),
+                              min(x1, x2), max(x1+w1, x2+w2))
+    h, w = (ymax3 - ymin3, xmax3 - xmin3)
+    y, x = (ymin3, xmin3)
+
+    return x, y, w, h
+
+
+def mat_to_triplets(mat_data, word2idx):
+    D = []
+
+    import ipdb; ipdb.set_trace()
+    for datum in mat_data:
+        if not hasattr(datum, 'relationship'):
+            continue
+        img_rels = datum.relationship
+        if not hasattr(img_rels, '__getitem__'):
+            if not all(i in dir(img_rels) for i in ['objBox', 'phrase', 'subBox']):
+                print 'skipping relation, dir contains:', [_ for _ in dir(img_rels) if '_' not in _]
+                continue
+            img_rels = [img_rels]
 
         for r in img_rels:
-            uid = get_relid(r)
+            s,v,o   = r.phrase
+            sub_id  = (datum.filename, s, box_to_coords(*r.subBox))
+            obj_id = (datum.filename, o, box_to_coords(*r.objBox))
 
-            ymin1, ymax1, xmin1, xmax1 = rel.subBox
-            ymin2, ymax2, xmin2, xmax2 = rel.objBox
-            ymin3, ymax3, xmin3, xmax3 = (min(ymin1, ymin2), max(ymax1, ymax2),
-                                          min(xmin1, xmin2), max(xmax1, xmax2))
-            h, w = (ymax - ymin, xmax - xmin)
-            y, x = (ymin, xmin)
-            coords = (x, y, w, h)
+            R  = convert_rel(r, word2idx)
+            D.append((R, sub_id, obj_id))
 
-            add_to_dict(uid, (datum.filename, coords), uid2coords)
-
-    return uid2coords
+    return D

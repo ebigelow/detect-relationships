@@ -1,5 +1,5 @@
 import tensorflow as tf
-from utils import get_uid2imdata, batch_images, rel_coords
+from utils import loadmat, get_imdata, batch_images
 from vgg16 import CustomVgg16
 import numpy as np
 import os
@@ -11,22 +11,21 @@ from tqdm import tqdm
 
 tf.app.flags.DEFINE_float('gpu_mem_fraction', 0.9, '')
 
-tf.app.flags.DEFINE_integer('output_size', 100, '')
-tf.app.flags.DEFINE_integer('batch_size',  10,  '')
+tf.app.flags.DEFINE_string('which_net',    'objnet', '')
+tf.app.flags.DEFINE_integer('output_size', 100,      '')
+tf.app.flags.DEFINE_integer('batch_size',  10,       '')
 
-tf.app.flags.DEFINE_string('weights',    'data/models/objnet/vgg16_trained3.npy', 'Load weights from this file')
-tf.app.flags.DEFINE_string('save_file',  'data/models/objnet/feature_dict.npy',  'Save layer output here')
-tf.app.flags.DEFINE_string('layer',      'fc7', '')
+tf.app.flags.DEFINE_string('weights',   'data/models/objnet/vgg16_trained3.npy', 'Load weights from this file')
+tf.app.flags.DEFINE_string('save_file', 'data/models/objnet/feature_dict.npy',  'Save layer output here')
+tf.app.flags.DEFINE_string('layer',     'fc7', '')
 
-tf.app.flags.DEFINE_string('obj_list',  'data/vrd/objectListN.mat',      '')
-tf.app.flags.DEFINE_string('rel_list',  'data/vrd/predicate.mat',        '')
-tf.app.flags.DEFINE_string('train_mat', 'data/vrd/annotation_train.mat', '')
-tf.app.flags.DEFINE_string('test_mat',  'data/vrd/annotation_test.mat',  '')
+# tf.app.flags.DEFINE_string('obj_list', 'data/vrd/objectListN.mat', '')
+# tf.app.flags.DEFINE_string('rel_list', 'data/vrd/predicate.mat',   '')
 
-tf.app.flags.DEFINE_string('train_imgs', 'data/vrd/images/train/', '')
-tf.app.flags.DEFINE_string('test_imgs',  'data/vrd/images/test/',  '')
-tf.app.flags.DEFINE_string('mean_file',       'mean.npy',               '')
+tf.app.flags.DEFINE_string('mat_file', 'data/vrd/annotation_train.mat', '')
+tf.app.flags.DEFINE_string('img_dir',  'data/vrd/images/train/',        '')
 
+tf.app.flags.DEFINE_string('mean_file', 'mean.npy', '')
 
 FLAGS = tf.app.flags.FLAGS
 
@@ -40,11 +39,12 @@ if __name__ == '__main__':
     gpu_fraction = tf.GPUOptions(per_process_gpu_memory_fraction=FLAGS.gpu_mem_fraction)
     session_init = lambda: tf.Session(config=tf.ConfigProto(gpu_options=(gpu_fraction)))
 
-    mean = np.load(FLAGS.mean_file)
+    mat                = loadmat(FLAGS.mat_file)[FLAGS.mat_file.split('/')[-1].split('.')[0]]
+    obj_data, rel_data = get_imdata(mat)
+    imdata             = obj_data if FLAGS.which_net == 'objnet' else rel_data
 
-    mat = loadmat(FLAGS.train_mat)['annotation_train']
-    uid2imdata = get_uid2imdata2(mat)
-    img_batcher  = batch_images(uid2imdata, FLAGS.img_dir, mean, batch_len=FLAGS.batch_size)
+    mean        = np.load(FLAGS.mean_file)
+    img_batcher = batch_images(imdata, FLAGS.img_dir, mean, batch_len=FLAGS.batch_size)
 
     layer = getattr(net, FLAGS.layer)
     feature_dict = {}
