@@ -609,9 +609,11 @@ def get_imdata(mat):
 
         for r in img_rels:
             s,v,o = r.phrase
-            obj_data.update({( datum.filename, s,                box_to_coords(*r.subBox) )})
-            obj_data.update({( datum.filename, o,                box_to_coords(*r.objBox) )})
-            rel_data.update({( datum.filename, frozenset([s,o]), rel_to_coords(r)         )})
+            O1 = (datum.filename, s, box_to_coords(*r.subBox))
+            O2 = (datum.filename, o, box_to_coords(*r.objBox))
+            obj_data.update({O1, O2})
+            rel_data.update({objs_to_reluid(O1, O2)})
+            # rel_data.update({( datum.filename, frozenset([s,o]), rel_to_coords(r)         )})
 
     return list(obj_data), list(rel_data)
 
@@ -619,15 +621,15 @@ def get_imdata(mat):
 def box_to_coords(ymin, ymax, xmin, xmax):
     return xmin, ymin, (xmax-xmin), (ymax-ymin)
 
-def rel_to_coords(rel):
-    ymin1, ymax1, xmin1, xmax1 = rel.subBox
-    ymin2, ymax2, xmin2, xmax2 = rel.objBox
-    ymin3, ymax3, xmin3, xmax3 = (min(ymin1, ymin2), max(ymax1, ymax2),
-                                  min(xmin1, xmin2), max(xmax1, xmax2))
-    h, w = (ymax3 - ymin3, xmax3 - xmin3)
-    y, x = (ymin3, xmin3)
-
-    return x, y, w, h
+# def rel_to_coords(rel):
+#     ymin1, ymax1, xmin1, xmax1 = rel.subBox
+#     ymin2, ymax2, xmin2, xmax2 = rel.objBox
+#     ymin3, ymax3, xmin3, xmax3 = (min(ymin1, ymin2), max(ymax1, ymax2),
+#                                   min(xmin1, xmin2), max(xmax1, xmax2))
+#     h, w = (ymax3 - ymin3, xmax3 - xmin3)
+#     y, x = (ymin3, xmin3)
+#
+#     return x, y, w, h
 
 
 def objs_to_reluid(O1, O2):
@@ -643,8 +645,9 @@ def objs_to_reluid(O1, O2):
                               min(x1, x2), max(x1+w1, x2+w2))
     h, w = (ymax3 - ymin3, xmax3 - xmin3)
     y, x = (ymin3, xmin3)
+    coords = (x, y, w, h)
 
-    return x, y, w, h
+    return fname, frozenset([o1,o2]), coords
 
 
 def mat_to_triplets(mat_data, word2idx):
@@ -666,7 +669,10 @@ def mat_to_triplets(mat_data, word2idx):
             sub_id  = (datum.filename, s, box_to_coords(*r.subBox))
             obj_id = (datum.filename, o, box_to_coords(*r.objBox))
 
-            R  = convert_rel(r, word2idx)
+            i = word2idx['obj'][s]
+            j = word2idx['obj'][o]
+            k = word2idx['rel'][v]
+            R = (i,j,k)
             D.append((R, sub_id, obj_id))
 
     return D

@@ -4,7 +4,7 @@ import numpy as np
 from numpy.random import randint
 from scipy.spatial.distance import cosine
 from tqdm import tqdm, trange
-
+from utils import objs_to_reluid
 
 class Model:
     """
@@ -114,8 +114,7 @@ class Model:
 
     def V(self, R, O1, O2, Z, s):
         i,j,k = R
-
-        rel_id = self.rel_dict[frozenset([O1, O2])]
+        rel_id = objs_to_reluid(O1, O2)
 
         P_i = self.obj_probs[O1][i]
         P_j = self.obj_probs[O2][j]
@@ -235,12 +234,12 @@ class Model:
                 else:
                     # Equation 6
                     if cost > 0:
-                        id_r   = frozenset([O1, O2])
-                        id_r_  = frozenset([O1_, O2_])
+                        id_rel  = objs_to_reluid(O1, O2)
+                        id_rel_ = objs_to_reluid(O1_, O2_)
 
-                        Z[k]  -= self.learning_rate * f(R,W,b) * obj_probs[O1][i] * obj_probs[O2][j] * rel_feats[id_r]
+                        Z[k]  -= self.learning_rate * f(R,W,b) * obj_probs[O1][i] * obj_probs[O2][j] * rel_feats[id_rel]
                         s[k]  -= self.learning_rate * f(R,W,b) * obj_probs[O1][i] * obj_probs[O2][j]
-                        Z[k_] += self.learning_rate * f(R_,W,b)  * obj_probs[O1_][i_] * obj_probs[O2_][j_] * rel_feats[id_r_]
+                        Z[k_] += self.learning_rate * f(R_,W,b)  * obj_probs[O1_][i_] * obj_probs[O2_][j_] * rel_feats[id_rel_]
                         s[k_] += self.learning_rate * f(R_,W,b)  * obj_probs[O1_][i_] * obj_probs[O2_][j_]
 
             # Equation 4
