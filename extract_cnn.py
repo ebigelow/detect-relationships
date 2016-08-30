@@ -42,6 +42,7 @@ if __name__ == '__main__':
     mat                = loadmat(FLAGS.mat_file)[FLAGS.mat_file.split('/')[-1].split('.')[0]]
     obj_data, rel_data = get_imdata(mat)
     imdata             = obj_data if FLAGS.which_net == 'objnet' else rel_data
+    #import ipdb; ipdb.set_trace()
 
     mean        = np.load(FLAGS.mean_file)
     img_batcher = batch_images(imdata, FLAGS.img_dir, mean, batch_len=FLAGS.batch_size)

@@ -1,6 +1,6 @@
 #!/bin/bash
 
-export CUDA_VISIBLE_DEVICES=0
+export CUDA_VISIBLE_DEVICES=1
 export LD_LIBRARY_PATH=/usr/local/cuda-7.5/lib64:/localdisk/ebigelow/lib/cudnn-7.0/lib64/
 source ~/.virtualenvs/tf/bin/activate
 
@@ -8,16 +8,16 @@ source ~/.virtualenvs/tf/bin/activate
 
 GPU_FRACTION=0.9
 
-#WHICH_NET='objnet'
-#OUTPUT_SIZE=100
-#WEIGHTS="data/models/objnet/vgg16_trained3.npy"
-#SAVE_FILE="data/models/objnet/obj_prob.npy"
-#LAYER_NAME="prob"
-WHICH_NET='relnet'
-OUTPUT_SIZE=70
-WEIGHTS="data/models/relnet/vgg16_trained2.npy"
-SAVE_FILE="data/models/relnet/feature_dict.npy"
-LAYER_NAME="fc7"
+WHICH_NET='objnet'
+OUTPUT_SIZE=100
+WEIGHTS="data/models/objnet/vgg16_trained3.npy"
+SAVE_FILE="data/models/objnet/obj_probs.npy"
+LAYER_NAME="prob"
+#WHICH_NET='relnet'
+#OUTPUT_SIZE=70
+#WEIGHTS="data/models/relnet/vgg16_trained2.npy"
+#SAVE_FILE="data/models/relnet/feature_dict.npy"
+#LAYER_NAME="fc7"
 
 BATCH_SIZE=100
 

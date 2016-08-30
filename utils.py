@@ -232,7 +232,7 @@ def get_data2(mat_data, obj_dict, rel_dict, img_dir, mean_file='mean.npy'):
             obj_data.append((img2, od))
             rel_data.append((img3, vd))
 
-    return obj_data, rel_data
+    return list(obj_data), list(rel_data)
 
 
 
@@ -396,7 +396,7 @@ def get_data(mat_data, obj_dict, rel_dict, img_dir, mean_file='mean.npy'):
             obj_data.append((img2, od))
             rel_data.append((img3, vd))
 
-    return obj_data, rel_data
+    return list(obj_data), list(rel_data)
 
 
 def batchify_data(data, batch_size):
@@ -564,7 +564,7 @@ def batch_images(imdata, img_dir, mean, batch_len=10, crop_size=224):
     im_path = lambda fn: os.path.join(img_dir, fn)
     fnames, labels, coords = zip(*imdata)
 
-    for b in xrange(0, len(uids), batch_len):
+    for b in xrange(0, len(imdata), batch_len):
 
         batch_uids   = imdata[b:b + batch_len]
         batch_coords = coords[b:b + batch_len]
@@ -609,11 +609,11 @@ def get_imdata(mat):
 
         for r in img_rels:
             s,v,o = r.phrase
-            obj_data.update(( datum.filename, s,                box_to_coords(*r.subBox) ))
-            obj_data.update(( datum.filename, o,                box_to_coords(*r.objBox) ))
-            rel_data.update(( datum.filename, frozenset([s,o]), rel_to_coords(r)         ))
+            obj_data.update({( datum.filename, s,                box_to_coords(*r.subBox) )})
+            obj_data.update({( datum.filename, o,                box_to_coords(*r.objBox) )})
+            rel_data.update({( datum.filename, frozenset([s,o]), rel_to_coords(r)         )})
 
-    return obj_data, rel_data
+    return list(obj_data), list(rel_data)
 
 
 def box_to_coords(ymin, ymax, xmin, xmax):
