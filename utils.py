@@ -611,8 +611,9 @@ def get_imdata(mat):
             s,v,o = r.phrase
             O1 = (datum.filename, s, box_to_coords(*r.subBox))
             O2 = (datum.filename, o, box_to_coords(*r.objBox))
+            reluid = objs_to_reluid(O1, O2)
             obj_data.update({O1, O2})
-            rel_data.update({objs_to_reluid(O1, O2)})
+            rel_data.update({reluid, })
             # rel_data.update({( datum.filename, frozenset([s,o]), rel_to_coords(r)         )})
 
     return list(obj_data), list(rel_data)
@@ -643,8 +644,8 @@ def objs_to_reluid(O1, O2):
     x2, y2, w2, h2 = coords2
     ymin, ymax, xmin, xmax = (min(y1, y2), max(y1+h1, y2+h2),
                               min(x1, x2), max(x1+w1, x2+w2))
-    h, w = (ymax3 - ymin3, xmax3 - xmin3)
-    y, x = (ymin3, xmin3)
+    h, w = (ymax-ymin, xmax-xmin)
+    y, x = (ymin    , xmin)
     coords = (x, y, w, h)
 
     return fname, frozenset([o1,o2]), coords
