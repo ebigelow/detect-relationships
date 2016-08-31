@@ -58,7 +58,7 @@ class Model:
         self.lamb2         = lamb2
 
         self.n = obj_probs.values()[0].shape[0]
-        self.k = rel_feats.values()[0].shape[0]
+        self.k = w2v.shape[0] - self.n
 
         self.init_weights()
         self.init_R_samples()
@@ -187,7 +187,7 @@ class Model:
         for epoch in range(self.max_iters):
 
             # Shuffle data
-            D = sorted(D, key=lambda x: np.random.rand())
+            #D = sorted(D, key=lambda x: np.random.rand())
 
             # Use to get change in cost
             mc      = 0.0
@@ -244,7 +244,7 @@ class Model:
 
             # Equation 4
             if epoch % 2 == 0:
-                print 'PART 3'
+                #print 'PART 3'
                 dKfun = sum(    (2. / d(R,R_,W,b)) *
                                 (f(R,W,b) - f(R_,W,b)) *
                                 (self.word_vec(*R[:-1]) - self.word_vec(*R_[:-1]))
@@ -254,13 +254,13 @@ class Model:
                 Ksum = sum(Kfun(R,R_) for R, R_ in self.R_samples)
                 nr = self.num_samples
                 dK_dW = ((2.0 - nr) / nr) * Ksum * dKfun
-                print '\tKsum', Ksum
-                print '\tdKfun', dKfun
+                #print '\tKsum', Ksum
+                #print '\tdKfun', dKfun
 
                 # TODO: separate `W[k] += ...` and `W[k_] -= ...`
                 W += self.learning_rate * dK_dW
 
-            print '\tit {} | change in cost: {}'.format(epoch, mc_prev - mc)
+            print '\tit {} | change in cost: {}'.format(epoch, mc - mc_prev)
             mc_prev = mc
 
         self.W, self.b, self.Z, self.s = (W, b, Z, s)
