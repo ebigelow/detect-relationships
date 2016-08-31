@@ -613,7 +613,7 @@ def get_imdata(mat):
             O2 = (datum.filename, o, box_to_coords(*r.objBox))
             reluid = objs_to_reluid(O1, O2)
             obj_data.update({O1, O2})
-            rel_data.update({reluid, })
+            rel_data.add(reluid)
             # rel_data.update({( datum.filename, frozenset([s,o]), rel_to_coords(r)         )})
 
     return list(obj_data), list(rel_data)
@@ -648,13 +648,13 @@ def objs_to_reluid(O1, O2):
     y, x = (ymin    , xmin)
     coords = (x, y, w, h)
 
-    return fname, frozenset([o1,o2]), coords
+    return (fname, frozenset([o1,o2]), coords)
 
 
 def mat_to_triplets(mat_data, word2idx):
     D = []
 
-    import ipdb; ipdb.set_trace()
+    #import ipdb; ipdb.set_trace()
     for datum in mat_data:
         if not hasattr(datum, 'relationship'):
             continue
