@@ -72,6 +72,15 @@ class Model:
         self.Z = v * np.random.rand(k, nfeats)
         self.s = v * np.random.rand(k, 1)
 
+    def save_weights(self, filename):
+        data_dict = {}
+        data_dict['W'] = self.W
+        data_dict['b'] = self.b
+        data_dict['Z'] = self.Z
+        data_dict['s'] = self.s
+        np.save(filename, data_dict)
+
+
 
     def init_R_samples(self):
         """
@@ -175,7 +184,7 @@ class Model:
                 recall += sum((y in X[:k]) for y in Y) / z
             return recall
 
-    def SGD(self, D):
+    def SGD(self, D, save_file='data/models/vrd_weights.npy'):
         """
         Perform SGD over eqs 5 (L) 6 (C)
 
@@ -254,16 +263,16 @@ class Model:
                 Ksum = sum(Kfun(R,R_) for R, R_ in self.R_samples)
                 nr = self.num_samples
                 dK_dW = ((2.0 - nr) / nr) * Ksum * dKfun
-                #print '\tKsum', Ksum
-                #print '\tdKfun', dKfun
 
-                # TODO: separate `W[k] += ...` and `W[k_] -= ...`
+                # TODO???: separate `W[k] += ...` and `W[k_] -= ...`
                 W += self.learning_rate * dK_dW
 
             print '\tit {} | change in cost: {}'.format(epoch, mc - mc_prev)
             mc_prev = mc
 
-        self.W, self.b, self.Z, self.s = (W, b, Z, s)
+            self.W, self.b, self.Z, self.s = (W, b, Z, s)
+            self.save_weights(save_file)
+
         return W, b, Z, s
 
 
