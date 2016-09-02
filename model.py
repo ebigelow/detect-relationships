@@ -130,7 +130,7 @@ class Model:
 
     def f(self, R):
         """
-        Project relationship `R = <i,j,k>` to scalar space.
+        Reduce relationship <i,j,k> to scalar language space.
 
         """
         i,j,k = R
@@ -139,6 +139,10 @@ class Model:
         return np.dot(W[k].T, wvec) + b[k]
 
     def V(self, R, O1, O2):
+        """
+        Reduce relationship <i,j,k> to scalar visual space.
+
+        """
         i,j,k = R
         rel_uid = objs_to_reluid(O1, O2)
         cnn = self.rel_feats[rel_uid]
@@ -299,34 +303,35 @@ class Model:
                         s[k_] += lr * f(R_) * obj_probs[O1_][i_] * obj_probs[O2_][j_]
                         self.update(Z=Z, s=s)
 
-            # # Equation 4
-            # if epoch % 2 == 0:
-            #     dKfun = sum(    (2. / d(R,R_)) *
-            #                     (f(R,W,b) - f(R_)) *
-            #                     (self.word_vec(*R[:-1]) - self.word_vec(*R_[:-1]))
-            #                 for R,R_ in self.R_samples )
-            #
-            #     Kfun = lambda R, R_: (f(R) - f(R_))**2 / d(R,R_)
-            #     Ksum = sum(Kfun(R,R_) for R, R_ in self.R_samples)
-            #     nr = self.num_samples
-            #     dK_dW = ((2.0 - nr) / nr) * Ksum * dKfun
-            #
-            #     # TODO: separate `W[k] += ...` and `W[k_] -= ...`  ???
-            #     # TODO: if (1 - v + v' > 0) : update
-            #
-            #     W += self.learning_rate * dK_dW * self.lamb2
-            #     self.update(W=W, b=b)
+            # Equation 4  (W,b)
+            if epoch % 2 == 0:
+                # Only update weights when f(R')-f(R)+1 > 0
+                dK_dR = lambda R1, R2, v: v if f(R1) - f(R2) + 1 > 0 else 0
+                dKfun = sum( dK_dR(R,R_, (2. / d(R,R_)) * (f(R) - f(R_)) *
+                                         (self.word_vec(*R[:-1]) - self.word_vec(*R_[:-1])) )
+                             for R,R_ in self.R_samples )
+
+                Kfun = lambda R, R_: (f(R) - f(R_))**2 / d(R,R_)
+                Ksum = sum(Kfun(R,R_) for R, R_ in self.R_samples)
+                nr = self.num_samples
+                dK_dW = ((2.0 - nr) / nr) * Ksum * dKfun
+
+                # TODO: separate `W[k] += ...` and `W[k_] -= ...`  ???
+                print 'dK_dW shape: {}'.format(dK_dW.shape)
+                # TODO: if (1 - v + v' > 0) : update
+                W += self.learning_rate * dK_dW * self.lamb2
+                self.update(W=W, b=b)
 
             self.save_weights(save_file)
 
-            final_obj = mc + (self.lamb1 * self.L(D))
+            Lv = self.lamb1 * self.L(D)
+            Kv = self.lamb2 * self.K()
+            final_obj = np.array(mc, Lv, Kv)
             print '\tit {} | change in cost: {}'.format(epoch, final_obj - cost_prev)
             cost_prev = final_obj
 
-            accuracy = self.compute_accuracy2(D[:100], k=100)
+            accuracy = self.compute_accuracy2(D[:100], topn=20)
             print '\taccuracy {}'.format(accuracy)
-
-        return W, b, Z, s
 
 
 
@@ -346,11 +351,8 @@ class Model:
         Eq (4): randomly sample relationship pairs and minimize variance.
 
         """
-        D = []
-        for R1, R2 in self.R_samples:
-            d = dist(R1, R2)
-            D.append(d)
-        return np.var(D)
+        R_dists = self.d(R1, R2) for R1, R2 in self.R_samples:
+        return np.var(R_dists)
 
     def L(self, D):
         """  UNUSED
