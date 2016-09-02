@@ -8,13 +8,6 @@ from cv2 import imread, resize
 import tensorflow as tf
 
 
-
-
-
-
-
-
-
 # ---------------------------------------------------------------------------------------------------------
 # Image processing
 
@@ -79,7 +72,8 @@ def rel_coords(scene_graphs):
 # ---------------------------------------------------------------------------------------------------------
 # Word2Vec
 
-# TODO: these are for VG, not VRD
+# Visual Genome Only
+# ------------------
 
 def fix_r(r):
     if r.predicate == 'of':
@@ -141,27 +135,6 @@ def make_word2idx(word_list):
     return word2idx
 
 
-# TODO this fixes words for VRD only
-def get_w2v(w, M):
-    removes = ['of','the', 'to']
-
-    s = w.replace(' ','_')
-    if s in M:
-        return M[s]
-    elif w == 'traffic light':
-        return M['traffic_signalization']
-    else:
-        ls = [x for x in  w.split(' ') if x not in removes]
-        return reduce(np.add, [M[word] for word in ls])
-
-def make_w2v(word2idx, w2v_bin='data/GoogleNews-vectors-negative300.bin'):
-    # Build matrix of w2v vectors
-    import gensim.models as gm
-    M = gm.Word2Vec.load_word2vec_format(w2v_bin, binary=True)
-    obj_w2v = [get_w2v(w,M) for w, i in sorted(word2idx['obj'].items(), key=lambda x: x[1])]
-    rel_w2v = [get_w2v(w,M) for w, i in sorted(word2idx['rel'].items(), key=lambda x: x[1])]
-    return np.vstack(obj_w2v + rel_w2v)
-
 
 def convert_rel(rel, word2idx):
     """
@@ -194,45 +167,38 @@ def sg_to_triplets(scene_graphs, word2idx):
 
 
 
-def get_data2(mat_data, obj_dict, rel_dict, img_dir, mean_file='mean.npy'):
-    obj_data = []
-    rel_data = []
 
-    for datum in mat_data:
-        if not hasattr(datum, 'relationship'):
-            #print 'skipping image {}, no relationship'.format(img_dir + datum.filename)
-            continue
-        img_rels = datum.relationship
-        if not hasattr(img_rels, '__getitem__'):
-            if not all(i in dir(img_rels) for i in ['objBox', 'phrase', 'subBox']):
-                print 'skipping relation, dir contains:', [_ for _ in dir(img_rels) if '_' not in _]
-                continue
-            img_rels = [img_rels]
+# Visual Genome Only
+# ------------------
 
-        img = imread(img_dir + datum.filename)
-        # print img_dir+datum.filename; print img.shape
-        for rel in img_rels:
-            ymin1, ymax1, xmin1, xmax1 = rel.subBox
-            ymin2, ymax2, xmin2, xmax2 = rel.objBox
-            ymin3, ymax3, xmin3, xmax3 = (min(ymin1, ymin2), max(ymax1, ymax2),
-                                          min(xmin1, xmin2), max(xmax1, xmax2))
-            h1, w1 = (ymax1 - ymin1, xmax1 - xmin1)
-            h2, w2 = (ymax2 - ymin2, xmax2 - xmin2)
-            h3, w3 = (ymax3 - ymin3, xmax3 - xmin3)
+def get_w2v(w, M):
+    """
+    this fixes words for VRD only
 
-            img1 = square_crop(img, 224, xmin1, ymin1, w1, h1) - np.load(mean_file)
-            img2 = square_crop(img, 224, xmin2, ymin2, w2, h2) - np.load(mean_file)
-            img3 = square_crop(img, 224, xmin3, ymin3, w3, h3) - np.load(mean_file)
+    """
+    removes = ['of','the', 'to']
 
-            s,v,o = rel.phrase
-            sd = np.zeros((100)); sd[obj_dict[s]] = 1
-            od = np.zeros((100)); od[obj_dict[o]] = 1
-            vd = np.zeros((70));  vd[rel_dict[v]] = 1
-            obj_data.append((img1, sd))
-            obj_data.append((img2, od))
-            rel_data.append((img3, vd))
+    s = w.replace(' ','_')
+    if s in M:
+        return M[s]
+    elif w == 'traffic light':
+        return M['traffic_signalization']
+    else:
+        ls = [x for x in  w.split(' ') if x not in removes]
+        return reduce(np.add, [M[word] for word in ls])
 
-    return list(obj_data), list(rel_data)
+def save_w2v(word2idx, w2v_bin='data/word2vec/GoogleNews-vectors-negative300.bin'):
+    w2v = make_w2v(word2idx, w2v_bin)
+    np.save(w2v_file, w2v)
+
+def make_w2v(word2idx, w2v_bin='data/GoogleNews-vectors-negative300.bin'):
+    # Build matrix of w2v vectors
+    import gensim.models as gm
+    M = gm.Word2Vec.load_word2vec_format(w2v_bin, binary=True)
+    obj_w2v = [get_w2v(w,M) for w, i in sorted(word2idx['obj'].items(), key=lambda x: x[1])]
+    rel_w2v = [get_w2v(w,M) for w, i in sorted(word2idx['rel'].items(), key=lambda x: x[1])]
+    return np.vstack(obj_w2v + rel_w2v)
+
 
 
 
@@ -491,74 +457,6 @@ def test_cnn(net, ground_truth, N_test=1000, which_net='objnet',
 # For `extract_cnn.py`
 
 
-
-
-# def batch_images(uid2imdata, img_dir, mean, batch_len=10, crop_size=224):
-#
-#     im_path = lambda fn: os.path.join(img_dir, fn)
-#     uids = uid2imdata.keys()
-#     fnames, coords = zip(*uid2imdata.values())
-#
-#     for b in xrange(0, len(uids), batch_len):
-#
-#         batch_uids   = uids[b:b + batch_len]
-#         batch_coords = coords[b:b + batch_len]
-#         batch_fnames = fnames[b:b + batch_len]
-#
-#         batch_imgs   = [imread(im_path(fn)) - mean for fn in batch_fnames]
-#         batch_imdata = zip(batch_imgs, batch_coords)
-#
-#         batch_crops  = [square_crop(img, crop_size, *co)[None, ...] for img, co in batch_imdata]
-#         batch_crops  = np.concatenate(batch_crops, axis=0)
-#         batch_crops -= mean
-#
-#         idx2uid = {idx:uid for idx, uid in enumerate(batch_uids)}
-#
-#         # TODO: make sure idxs refer to original imgs, not padding
-#         pad_len = batch_len - len(batch_uids)
-#         if pad_len > 0:
-#             pad_imgs = np.zeros((pad_len, crop_size, crop_size, 3))
-#             batch_crops = np.concatenate([batch_crops, pad_imgs], axis=0)
-#
-#         yield idx2uid, batch_crops
-#
-#
-# def add_to_dict(key, item, D):
-#     if key in D:
-#         return D
-#     else:
-#         D[key] = item
-#         return D
-#
-# def get_uid2imdata(scene_graphs):
-#     uid2coords = {}
-#
-#     for sg in scene_graphs:
-#         get_objid = lambda x: str(sg.image.id) + '_' + str(x.id)
-#         get_relid = lambda y: frozenset([get_objid(y.subject), get_objid(y.object)])
-#         fname = sg.image.url
-#
-#         for o in sg.objects:
-#             uid = get_objid(o)
-#             coords = (o.x, o.y, o.width, o.height)
-#             uid2coords = add_to_dict(uid, (fname, coords), uid2coords)
-#
-#         for r in sg.relationships:
-#             uid = get_relid(r)
-#             coords = (r.x, r.y, r.width, r.height)
-#             uid2coords = add_to_dict(uid, (fname, coords), uid2coords)
-#
-#     return uid2coords
-
-
-
-
-
-
-
-
-
-
 def batch_images(imdata, img_dir, mean, batch_len=10, crop_size=224):
 
     im_path = lambda fn: os.path.join(img_dir, fn)
@@ -612,9 +510,9 @@ def get_imdata(mat):
             O1 = (datum.filename, s, box_to_coords(*r.subBox))
             O2 = (datum.filename, o, box_to_coords(*r.objBox))
             reluid = objs_to_reluid(O1, O2)
+
             obj_data.update({O1, O2})
             rel_data.add(reluid)
-            # rel_data.update({( datum.filename, frozenset([s,o]), rel_to_coords(r)         )})
 
     return list(obj_data), list(rel_data)
 
@@ -622,21 +520,8 @@ def get_imdata(mat):
 def box_to_coords(ymin, ymax, xmin, xmax):
     return xmin, ymin, (xmax-xmin), (ymax-ymin)
 
-# def rel_to_coords(rel):
-#     ymin1, ymax1, xmin1, xmax1 = rel.subBox
-#     ymin2, ymax2, xmin2, xmax2 = rel.objBox
-#     ymin3, ymax3, xmin3, xmax3 = (min(ymin1, ymin2), max(ymax1, ymax2),
-#                                   min(xmin1, xmin2), max(xmax1, xmax2))
-#     h, w = (ymax3 - ymin3, xmax3 - xmin3)
-#     y, x = (ymin3, xmin3)
-#
-#     return x, y, w, h
-
 
 def objs_to_reluid(O1, O2):
-    # TODO
-    # TODO: hashing function to convert O1, O2 -> rel_uid
-    # TODO
     fname, o1, coords1 = O1
     fname, o2, coords2 = O2
 

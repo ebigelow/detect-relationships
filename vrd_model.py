@@ -1,5 +1,5 @@
 import numpy as np
-from utils import make_w2v, loadmat, mat_to_triplets
+from utils import make_w2v, loadmat, mat_to_triplets, get_imdata
 from model import Model
 
 import sys
@@ -20,8 +20,6 @@ train_mat = 'data/vrd/annotation_train.mat'
 # --------------------------------------------------------------------------------------------------
 # Load data
 
-#w2v = make_w2v(word2idx, w2v_bin='data/word2vec/GoogleNews-vectors-negative300.bin')
-#np.save(w2v_file, w2v)
 obj_dict = {r:i for i,r in enumerate(loadmat(obj_mat)['objectListN'])}
 rel_dict = {r:i for i,r in enumerate(loadmat(rel_mat)['predicate'])}
 

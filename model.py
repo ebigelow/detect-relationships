@@ -73,13 +73,20 @@ class Model:
         self.s = v * np.random.rand(k, 1)
 
     def save_weights(self, filename):
-        data_dict = {}
-        data_dict['W'] = self.W
-        data_dict['b'] = self.b
-        data_dict['Z'] = self.Z
-        data_dict['s'] = self.s
+        data_dict = { 'W' : self.W,
+                      'b' : self.b,
+                      'Z' : self.Z,
+                      's' : self.s  }
         np.save(filename, data_dict)
+        print 'numpy file saved to: {}'.format(filename)
 
+    def load_weights(self, filename):
+        data_dict = np.load(filename)
+        self.W = data_dict['W']
+        self.b = data_dict['b']
+        self.Z = data_dict['Z']
+        self.s = data_dict['s']
+        print 'numpy file loaded from: {}'.format(filename)
 
 
     def init_R_samples(self):
@@ -192,20 +199,17 @@ class Model:
         obj_probs, rel_feats, w2v = (self.obj_probs, self.rel_feats, self.w2v)
         V, f, d = (self.V, self.f, self.d)
         W, b, Z, s = (self.W, self.b, self.Z, self.s)
+        cost_prev = 0.0
 
         for epoch in range(self.max_iters):
 
-            # Shuffle data
-            #D = sorted(D, key=lambda x: np.random.rand())
-
-            # Use to get change in cost
-            mc      = 0.0
-            mc_prev = 1.0
+            # Use to get change in cost (mc = mean cost)
+            mc = 0.0
 
             # Iterate over data points (stochastically)
             for R, O1, O2 in tqdm(D):
 
-                # Get 2nd data point that maximizes equation ??? TODO
+                # Get (R, O1, O2) that maximizes term in equation 6
                 D_ = [(R_,O1_,O2_) for R_,O1_,O2_ in D if (R_ != R) and (O1_ != O1 or O2_ != O2)]
                 M = sorted(D_, key=lambda (R,O1,O2): V(R,O1,O2,Z,s) * f(R,W,b))
                 R_,O1_,O2_ = M[0]
@@ -214,7 +218,7 @@ class Model:
                 i_,j_,k_ = R_
 
                 # Compute value for ` max{cost, 0} ` in equation 6
-                cost = 1 - V(R,O1,O2,Z,s) * f(R,W,b) + V(R_,O1_,O2_,Z,s) * f(R_,W,b)
+                cost = max(1. - V(R,O1,O2,Z,s) * f(R,W,b) + V(R_,O1_,O2_,Z,s) * f(R_,W,b), 0.)
                 mc  += cost / len(D)
 
 
@@ -224,9 +228,9 @@ class Model:
                     for R_2, O1_2, O2_2 in D:
                         i_2,j_2,k_2 = R_2
                         if f(R_2, W, b) - f(R, W, b) > 0:
-                            W[k]   -= self.learning_rate * np.concatenate((w2v[i],  w2v[j])) * self.lamb1
+                            W[k]   -= self.learning_rate * self.lamb1 * np.concatenate((w2v[i],  w2v[j]))
                             b[k]   -= self.learning_rate * self.lamb1
-                            W[k_2] += self.learning_rate * np.concatenate((w2v[i_2], w2v[j_2])) * self.lamb1
+                            W[k_2] += self.learning_rate * self.lamb1 * np.concatenate((w2v[i_2], w2v[j_2]))
                             b[k_2] += self.learning_rate * self.lamb1
 
                     # Equation 6
@@ -251,27 +255,32 @@ class Model:
                         Z[k_] += self.learning_rate * f(R_,W,b)  * obj_probs[O1_][i_] * obj_probs[O2_][j_] * rel_feats[id_rel_]
                         s[k_] += self.learning_rate * f(R_,W,b)  * obj_probs[O1_][i_] * obj_probs[O2_][j_]
 
-            # Equation 4
-            if epoch % 2 == 0:
-                #print 'PART 3'
-                dKfun = sum(    (2. / d(R,R_,W,b)) *
-                                (f(R,W,b) - f(R_,W,b)) *
-                                (self.word_vec(*R[:-1]) - self.word_vec(*R_[:-1]))
-                            for R,R_ in self.R_samples )
-
-                Kfun = lambda R, R_: (f(R,W,b) - f(R_,W,b))**2 / d(R,R_,W,b)
-                Ksum = sum(Kfun(R,R_) for R, R_ in self.R_samples)
-                nr = self.num_samples
-                dK_dW = ((2.0 - nr) / nr) * Ksum * dKfun
-
-                # TODO???: separate `W[k] += ...` and `W[k_] -= ...`
-                W += self.learning_rate * dK_dW
-
-            print '\tit {} | change in cost: {}'.format(epoch, mc - mc_prev)
-            mc_prev = mc
+            # # Equation 4
+            # if epoch % 2 == 0:
+            #     dKfun = sum(    (2. / d(R,R_,W,b)) *
+            #                     (f(R,W,b) - f(R_,W,b)) *
+            #                     (self.word_vec(*R[:-1]) - self.word_vec(*R_[:-1]))
+            #                 for R,R_ in self.R_samples )
+            #
+            #     Kfun = lambda R, R_: (f(R,W,b) - f(R_,W,b))**2 / d(R,R_,W,b)
+            #     Ksum = sum(Kfun(R,R_) for R, R_ in self.R_samples)
+            #     nr = self.num_samples
+            #     dK_dW = ((2.0 - nr) / nr) * Ksum * dKfun
+            #
+            #     # TODO: separate `W[k] += ...` and `W[k_] -= ...`  ???
+            #     # TODO: if (1 - v + v' > 0) : update
+            #
+            #     W += self.learning_rate * dK_dW * self.lamb2
 
             self.W, self.b, self.Z, self.s = (W, b, Z, s)
             self.save_weights(save_file)
+
+            final_obj = cost + self.lamb1 * self.L(D)
+            print '\tit {} | change in cost: {}'.format(epoch, final_obj - cost_prev)
+            cost_prev = final_obj
+
+            accuracy = self.compute_accuracy(D[:100])
+            print '\taccuracy {}'.format(accuracy)
 
         return W, b, Z, s
 
