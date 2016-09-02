@@ -150,7 +150,7 @@ class Model:
         return P_i * P_j * P_k
 
 
-    def predict_Rs(self, O1, O2):
+    def predict_Rs(self, O1, O2, topn=100):
         """
         Full list of predictions `R`, sorted by confidence
 
@@ -158,7 +158,7 @@ class Model:
         N,K = (self.n, self.k)
         Rs = [(i,j,k) for i in range(N) for j in range(N) for k in range(K)]
         M = sorted(Rs, key=lambda R: -self.V(R,O1,O2) * self.f(R))
-        return M
+        return M[:topn]
 
     def compute_accuracy(self, GT, k=None):
         """
@@ -222,6 +222,11 @@ class Model:
                 # Get (R, O1, O2) that maximizes term in equation 6
                 D_ = [(R_,O1_,O2_) for R_,O1_,O2_ in D if (R_ != R) and (O1_ != O1 or O2_ != O2)]
                 M = sorted(D_, key=lambda (R,O1,O2): V(R,O1,O2) * f(R))
+                # # TODO Parallelism
+                # M = []
+                # for b in range(len(D)):
+                #     D_batch = D[b:b+n_proc]
+                #     M += = MPI_map(lambda R,O1,O2: V(R,O1,O2) * f(R), D_batch, n_proc=n_proc)
                 R_,O1_,O2_ = M[0]
 
                 i,j,k = R
@@ -291,114 +296,14 @@ class Model:
 
             self.save_weights(save_file)
 
-            final_obj = cost + self.lamb1 * self.L(D)
+            final_obj = mc + (self.lamb1 * self.L(D))
             print '\tit {} | change in cost: {}'.format(epoch, final_obj - cost_prev)
             cost_prev = final_obj
 
-            accuracy = self.compute_accuracy(D[:100])
+            accuracy = self.compute_accuracy(D[:100], k=100)
             print '\taccuracy {}'.format(accuracy)
 
         return W, b, Z, s
-
-
-
-
-    def SGD_parallel(self, D, n_proc=20):
-        """
-        Perform SGD over eqs 5 (L) 6 (C)
-
-        """
-        from SimpleMPI.MPI_map import MPI_map
-
-        obj_probs, rel_feats, w2v = (self.obj_probs, self.rel_feats, self.w2v)
-        V, f, d = (self.V, self.f, self.d)
-        W, b, Z, s = (self.W, self.b, self.Z, self.s)
-
-        for epoch in range(self.max_iters):
-
-            # Shuffle data
-            #D = sorted(D, key=lambda x: np.random.rand())
-
-            # Use to get change in cost
-            mc      = 0.0
-            mc_prev = 1.0
-
-            # Iterate over data points (stochastically)
-            MPI_map(self.SGD_update, D)
-
-            # Equation 4
-            if epoch % 2 == 0:
-                dKfun = sum(    (2. / d(R,R_,W,b)) *
-                                (f(R,W,b) - f(R_,W,b)) *
-                                (self.word_vec(*R[:-1]) - self.word_vec(*R_[:-1]))
-                            for R,R_ in self.R_samples )
-
-                Kfun = lambda R, R_: (f(R,W,b) - f(R_,W,b))**2 / d(R,R_,W,b)
-                Ksum = sum(Kfun(R,R_) for R, R_ in self.R_samples)
-                nr = self.num_samples
-                dK_dW = ((2.0 - nr) / nr) * Ksum * dKfun
-
-                W += self.learning_rate * dK_dW
-
-            print '\tit {} | change in cost: {}'.format(epoch, mc_prev - mc)
-            mc_prev = mc
-
-        self.W, self.b, self.Z, self.s = (W, b, Z, s)
-        return W, b, Z, s
-
-
-    def SGD_update(self, R, O1, O2):
-        obj_probs, rel_feats, w2v = (self.obj_probs, self.rel_feats, self.w2v)
-        V, f, d = (self.V, self.f, self.d)
-
-        # Get 2nd data point that maximizes equation ??? TODO
-        D_ = [(R_,O1_,O2_) for R_,O1_,O2_ in D if (R_ != R) and (O1_ != O1 or O2_ != O2)]
-        M = sorted(D_, key=lambda (R,O1,O2): V(R,O1,O2,Z,s) * f(R,W,b))
-        R_,O1_,O2_ = M[0]
-
-        i,j,k = R
-        i_,j_,k_ = R_
-
-        # Compute value for ` max{cost, 0} ` in equation 6
-        cost = 1 - V(R,O1,O2,Z,s) * f(R,W,b) + V(R_,O1_,O2_,Z,s) * f(R_,W,b)
-        mc  += cost / len(D)
-
-
-        # Even epochs --> update W,b
-        if epoch % 2 == 0:
-            # Equation 5
-            for R_2, O1_2, O2_2 in D:
-                i_2,j_2,k_2 = R_2
-                if f(R_2, W, b) - f(R, W, b) > 0:
-                    W[k]   -= self.learning_rate * np.concatenate((w2v[i],  w2v[j])) * self.lamb1
-                    b[k]   -= self.learning_rate * self.lamb1
-                    W[k_2] += self.learning_rate * np.concatenate((w2v[i_2], w2v[j_2])) * self.lamb1
-                    b[k_2] += self.learning_rate * self.lamb1
-
-            # Equation 6
-            if cost > 0:
-                v = V(R,O1,O2,Z,s)
-                W[k]  -= self.learning_rate * v * np.concatenate((w2v[i], w2v[j]))
-                b[k]  -= self.learning_rate * v
-                v_ = V(R_,O1_,O2_,Z,s)
-                W[k_] += self.learning_rate * v_ * np.concatenate((w2v[i_], w2v[j_]))
-                b[k_] += self.learning_rate * v_
-
-
-        # Odd epochs --> update Z,s
-        else:
-            # Equation 6
-            if cost > 0:
-                id_rel  = objs_to_reluid(O1, O2)
-                id_rel_ = objs_to_reluid(O1_, O2_)
-
-                Z[k]  -= self.learning_rate * f(R,W,b) * obj_probs[O1][i] * obj_probs[O2][j] * rel_feats[id_rel]
-                s[k]  -= self.learning_rate * f(R,W,b) * obj_probs[O1][i] * obj_probs[O2][j]
-                Z[k_] += self.learning_rate * f(R_,W,b)  * obj_probs[O1_][i_] * obj_probs[O2_][j_] * rel_feats[id_rel_]
-                s[k_] += self.learning_rate * f(R_,W,b)  * obj_probs[O1_][i_] * obj_probs[O2_][j_]
-
-        self.W, self.b, self.Z, self.s = (W, b, Z, s)
-
 
 
 
@@ -432,7 +337,7 @@ class Model:
         Rs, O1s, O2s = zip(*D)
         fn = lambda R1, R2: max(self.f(R1) - self.f(R2) + 1, 0)
         return sum(fn(R1, R2) for R1 in Rs for R2 in Rs)
-     
+
     # def C(self, D):
     #     """  UNUSED
     #     Rank loss function
@@ -454,9 +359,9 @@ class Model:
 
         """
         C = self.C(D)
-        K = self.lamb1 * self.K()
-        L = self.lamb2 * L(D)
-        return C + K + L
+        L = self.lamb1 * self.L(D)
+        K = self.lamb2 * self.K()
+        return C + L + K
 
     def predict_R(self, O1, O2):
         """  UNUSED
@@ -467,5 +372,5 @@ class Model:
         K = obj_probs.shape[1]
 
         Rs = [(i,j,k) for i in range(N) for j in range(N) for k in range(K)]
-        M = sorted(Rs, key=lambda R: -V(R,O1,O2) * f(R,W,b))
+        M = sorted(Rs, key=lambda R: -V(R,O1,O2) * f(R))
         return M[-1]
