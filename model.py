@@ -140,14 +140,34 @@ class Model:
 
     def V(self, R, O1, O2):
         i,j,k = R
-        rel_id = objs_to_reluid(O1, O2)
+        rel_uid = objs_to_reluid(O1, O2)
+        cnn = self.rel_feats[rel_uid]
+        Z,s = (self.Z, self.s)
 
         P_i = self.obj_probs[O1][i]
         P_j = self.obj_probs[O2][j]
-        cnn = self.rel_feats[rel_id]
-        Z,s = (self.Z, self.s)
         P_k = np.dot(Z[k], cnn) + s[k]
         return P_i * P_j * P_k
+
+
+    def predict_preds(self, R, O1, O2, topn=20):
+        """
+        Predict predicate given object labels.
+
+        """
+        i,j,k = R
+        preds = [k_ for k_ in range(self.k)]
+        preds = sorted(preds, key=lambda x: -self.V((i,j,x),O1,O2) * self.f((i,j,x)))
+        return preds[:topn]
+
+    def compute_accuracy2(self, D, topn=20):
+        """
+        Compute accuracy, predicting predicates only.
+
+        """
+        predictions = [(self.predict_preds(R, O1, O2, topn), R[2]) for R, O1, O2 in D]
+        accuracy = np.mean([int(truth in p) for p,truth in predictions])
+        return accuracy
 
 
     def predict_Rs(self, O1, O2, topn=100):
@@ -197,7 +217,7 @@ class Model:
         # Recall @ k
         else:
             recall = 0.0
-            for X, Y in test_data:
+            for X in test_data:
                 z = float(len(Y) * len(test_data))
                 recall += sum((y in X[:k]) for y in Y) / z
             return recall
@@ -209,6 +229,7 @@ class Model:
         """
         obj_probs, rel_feats, w2v = (self.obj_probs, self.rel_feats, self.w2v)
         V, f, d = (self.V, self.f, self.d)
+        W, b, Z, s = (self.W, self.b, self.Z, self.s)
         cost_prev = 0.0
 
         for epoch in range(self.max_iters):
@@ -221,12 +242,14 @@ class Model:
 
                 # Get (R, O1, O2) that maximizes term in equation 6
                 D_ = [(R_,O1_,O2_) for R_,O1_,O2_ in D if (R_ != R) and (O1_ != O1 or O2_ != O2)]
-                M = sorted(D_, key=lambda (R,O1,O2): V(R,O1,O2) * f(R))
+                M = sorted(D_, key=lambda (R,O1,O2): -V(R,O1,O2) * f(R))
                 # # TODO Parallelism
                 # M = []
                 # for b in range(len(D)):
                 #     D_batch = D[b:b+n_proc]
-                #     M += = MPI_map(lambda R,O1,O2: V(R,O1,O2) * f(R), D_batch, n_proc=n_proc)
+                #     mapfun = lambda R,O1,O2: (V(R,O1,O2) * f(R), (R,O1,O2))
+                #     M += = MPI_map(mapfun, D_batch, n_proc=n_proc)
+                # M = zip(*sorted(M))[1]
                 R_,O1_,O2_ = M[0]
 
                 i,j,k = R
@@ -300,7 +323,7 @@ class Model:
             print '\tit {} | change in cost: {}'.format(epoch, final_obj - cost_prev)
             cost_prev = final_obj
 
-            accuracy = self.compute_accuracy(D[:100], k=100)
+            accuracy = self.compute_accuracy2(D[:100], k=100)
             print '\taccuracy {}'.format(accuracy)
 
         return W, b, Z, s
@@ -362,15 +385,3 @@ class Model:
         L = self.lamb1 * self.L(D)
         K = self.lamb2 * self.K()
         return C + L + K
-
-    def predict_R(self, O1, O2):
-        """  UNUSED
-        R* = argmax_R V(R, Z | <O_1, O_2>) f(R,W)
-
-        """
-        N = rel_feats.shape[1]
-        K = obj_probs.shape[1]
-
-        Rs = [(i,j,k) for i in range(N) for j in range(N) for k in range(K)]
-        M = sorted(Rs, key=lambda R: -V(R,O1,O2) * f(R))
-        return M[-1]
