@@ -35,6 +35,6 @@ D = mat_to_triplets(mat, word2idx)
 # --------------------------------------------------------------------------------------------------
 # Run model
 
-model = Model(obj_probs, rel_feats, w2v, word2idx)
+model = Model(obj_probs, rel_feats, w2v, word2idx, learning_rate=0.1, max_iters=50, noise=1.0)
 #import ipdb; ipdb.set_trace()
-model.SGD(D[:1000])
+model.SGD(D[:500])

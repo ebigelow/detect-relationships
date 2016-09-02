@@ -144,9 +144,9 @@ class Model:
         Full list of predictions `R`, sorted by confidence
 
         """
-        N,K,W,b = (self.n, self.k, self.W, self.b)
+        N,K,W,b,Z,s = (self.n, self.k, self.W, self.b, self.Z, self.s)
         Rs = [(i,j,k) for i in range(N) for j in range(N) for k in range(K)]
-        M = sorted(Rs, key=lambda R: -V(R,O1,O2,W,b) * f(R,W,b))
+        M = sorted(Rs, key=lambda R: -self.V(R,O1,O2,Z,s) * self.f(R,W,b))
         return M
 
     def compute_accuracy(self, GT, k=None):
@@ -171,7 +171,7 @@ class Model:
         is the correct label within the top k predictions?
 
         """
-        test_data = [[(predict_Rs(O1, O2), R) for R, O1, O2 in datum] for datum in GT]
+        test_data = [(self.predict_Rs(O1, O2), R) for R, O1, O2 in GT]
 
         # MAP
         if k is None:
@@ -415,8 +415,7 @@ class Model:
 
         """
         Rs, O1s, O2s = zip(*D)
-        Rs = zip(Is, Js, Ks)
-        fn = lambda R1, R2: max(self.f(*R1) - self.f(*R2) + 1, 0)
+        fn = lambda R1, R2: max(self.f(R1, self.W, self.b) - self.f(R2, self.W, self.b) + 1, 0)
         return sum(fn(R1, R2) for R1 in Rs for R2 in Rs)
 
     def C(self, img_data):
