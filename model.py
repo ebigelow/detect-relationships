@@ -226,7 +226,7 @@ class Model:
                 recall += sum((y in X[:k]) for y in Y) / z
             return recall
 
-    def SGD(self, D, save_file='data/models/vrd_weights.npy'):
+    def SGD(self, Ds, save_file='data/models/vrd_weights.npy'):
         """
         Perform SGD over eqs 5 (L) 6 (C)
 
@@ -241,86 +241,89 @@ class Model:
             # Use to get change in cost (mc = mean cost)
             mc = 0.0
 
-            # Iterate over data points (stochastically)
-            for R, O1, O2 in tqdm(D):
+            for D in tqdm(Ds):
 
-                # Get (R, O1, O2) that maximizes term in equation 6
-                D_ = [(R_,O1_,O2_) for R_,O1_,O2_ in D if (R_ != R) and (O1_ != O1 or O2_ != O2)]
-                M = sorted(D_, key=lambda (R,O1,O2): -V(R,O1,O2) * f(R))
-                # # TODO Parallelism
-                # M = []
-                # for b in range(len(D)):
-                #     D_batch = D[b:b+n_proc]
-                #     mapfun = lambda R,O1,O2: (V(R,O1,O2) * f(R), (R,O1,O2))
-                #     M += = MPI_map(mapfun, D_batch, n_proc=n_proc)
-                # M = zip(*sorted(M))[1]
-                R_,O1_,O2_ = M[0]
+                # Iterate over data points (stochastically)
+                for R, O1, O2 in D:
 
-                i,j,k = R
-                i_,j_,k_ = R_
+                    # Get (R, O1, O2) that maximizes term in equation 6
+                    D_ = [(R_,O1_,O2_) for R_,O1_,O2_ in D if (R_ != R) and (O1_ != O1 or O2_ != O2)]
+                    M = sorted(D_, key=lambda (R,O1,O2): -V(R,O1,O2) * f(R))
+                    # # TODO Parallelism
+                    # M = []
+                    # for b in range(len(D)):
+                    #     D_batch = D[b:b+n_proc]
+                    #     mapfun = lambda R,O1,O2: (V(R,O1,O2) * f(R), (R,O1,O2))
+                    #     M += = MPI_map(mapfun, D_batch, n_proc=n_proc)
+                    # M = zip(*sorted(M))[1]
+                    R_,O1_,O2_ = M[0]
 
-                # Compute value for ` max{cost, 0} ` in equation 6
-                cost = max(1. - V(R,O1,O2) * f(R) + V(R_,O1_,O2_) * f(R_), 0.)
-                mc  += cost / len(D)
+                    i,j,k = R
+                    i_,j_,k_ = R_
+
+                    # Compute value for ` max{cost, 0} ` in equation 6
+                    cost = max(1. - V(R,O1,O2) * f(R) + V(R_,O1_,O2_) * f(R_), 0.)
+                    mc  += cost / len(D)
 
 
-                # Even epochs --> update W,b
-                if epoch % 2 == 0:
-                    # Equation 5
-                    lr = self.learning_rate * self.lamb1
-                    for R_2, O1_2, O2_2 in D:
-                        i_2,j_2,k_2 = R_2
-                        if f(R_2) - f(R) > 0:
-                            W[k]   -= lr * np.concatenate((w2v[i], w2v[j]))
-                            b[k]   -= lr
-                            W[k_2] += lr * np.concatenate((w2v[i_2], w2v[j_2]))
-                            b[k_2] += lr
+                    # Even epochs --> update W,b
+                    if epoch % 2 == 0:
+                        # Equation 5
+                        # TODO: this is the only working section...
+                        lr = self.learning_rate * self.lamb1
+                        for R_2, O1_2, O2_2 in D:
+                            i_2,j_2,k_2 = R_2
+                            if 1 + f(R_2) - f(R) > 0:
+                                W[k]   -= lr * np.concatenate((w2v[i], w2v[j]))
+                                b[k]   -= lr
+                                W[k_2] += lr * np.concatenate((w2v[i_2], w2v[j_2]))
+                                b[k_2] += lr
+                                self.update(W=W, b=b)
+
+                        # Equation 6
+                        if cost > 0:
+                            lr = self.learning_rate
+                            v = V(R,O1,O2)
+                            W[k]  -= self.learning_rate * v * np.concatenate((w2v[i], w2v[j]))
+                            b[k]  -= self.learning_rate * v
+                            v_ = V(R_,O1_,O2_)
+                            W[k_] += self.learning_rate * v_ * np.concatenate((w2v[i_], w2v[j_]))
+                            b[k_] += self.learning_rate * v_
                             self.update(W=W, b=b)
 
-                    # Equation 6
-                    if cost > 0:
-                        lr = self.learning_rate
-                        v = V(R,O1,O2)
-                        W[k]  -= self.learning_rate * v * np.concatenate((w2v[i], w2v[j]))
-                        b[k]  -= self.learning_rate * v
-                        v_ = V(R_,O1_,O2_)
-                        W[k_] += self.learning_rate * v_ * np.concatenate((w2v[i_], w2v[j_]))
-                        b[k_] += self.learning_rate * v_
-                        self.update(W=W, b=b)
 
+                    # Odd epochs --> update Z,s
+                    else:
+                        # Equation 6
+                        if cost > 0:
+                            id_rel  = objs_to_reluid(O1, O2)
+                            id_rel_ = objs_to_reluid(O1_, O2_)
+                            lr = self.learning_rate
 
-                # Odd epochs --> update Z,s
-                else:
-                    # Equation 6
-                    if cost > 0:
-                        id_rel  = objs_to_reluid(O1, O2)
-                        id_rel_ = objs_to_reluid(O1_, O2_)
-                        lr = self.learning_rate
+                            Z[k]  -= lr * f(R)  * obj_probs[O1][i]   * obj_probs[O2][j]   * rel_feats[id_rel]
+                            s[k]  -= lr * f(R)  * obj_probs[O1][i]   * obj_probs[O2][j]
+                            Z[k_] += lr * f(R_) * obj_probs[O1_][i_] * obj_probs[O2_][j_] * rel_feats[id_rel_]
+                            s[k_] += lr * f(R_) * obj_probs[O1_][i_] * obj_probs[O2_][j_]
+                            self.update(Z=Z, s=s)
 
-                        Z[k]  -= lr * f(R)  * obj_probs[O1][i]   * obj_probs[O2][j]   * rel_feats[id_rel]
-                        s[k]  -= lr * f(R)  * obj_probs[O1][i]   * obj_probs[O2][j]
-                        Z[k_] += lr * f(R_) * obj_probs[O1_][i_] * obj_probs[O2_][j_] * rel_feats[id_rel_]
-                        s[k_] += lr * f(R_) * obj_probs[O1_][i_] * obj_probs[O2_][j_]
-                        self.update(Z=Z, s=s)
-
-            # Equation 4  (W,b)
-            if epoch % 2 == 0:
-                # Only update weights when f(R')-f(R)+1 > 0
-                dK_dR = lambda R1, R2, v: v if f(R1) - f(R2) + 1 > 0 else 0
-                dKfun = sum( dK_dR(R,R_, (2. / d(R,R_)) * (f(R) - f(R_)) *
-                                         (self.word_vec(*R[:-1]) - self.word_vec(*R_[:-1])) )
-                             for R,R_ in self.R_samples )
-
-                Kfun = lambda R, R_: (f(R) - f(R_))**2 / d(R,R_)
-                Ksum = sum(Kfun(R,R_) for R, R_ in self.R_samples)
-                nr = self.num_samples
-                dK_dW = ((2.0 - nr) / nr) * Ksum * dKfun
-
-                # TODO: separate `W[k] += ...` and `W[k_] -= ...`  ???
-                print 'dK_dW shape: {}'.format(dK_dW.shape)
-                # TODO: if (1 - v + v' > 0) : update
-                W += self.learning_rate * dK_dW * self.lamb2
-                self.update(W=W, b=b)
+                # # Equation 4  (W,b)
+                # if epoch % 2 == 0:
+                #     # Only update weights when f(R')-f(R)+1 > 0
+                #     dK_dR = lambda R1, R2, v: v if f(R1) - f(R2) + 1 > 0 else 0
+                #     dKfun = sum( dK_dR(R,R_, (2. / d(R,R_)) * (f(R) - f(R_)) *
+                #                              (self.word_vec(*R[:-1]) - self.word_vec(*R_[:-1])) )
+                #                  for R,R_ in self.R_samples )
+                #
+                #     Kfun = lambda R, R_: (f(R) - f(R_))**2 / d(R,R_)
+                #     Ksum = sum(Kfun(R,R_) for R, R_ in self.R_samples)
+                #     nr = self.num_samples
+                #     dK_dW = ((2.0 - nr) / nr) * Ksum * dKfun
+                #
+                #     # TODO: separate `W[k] += ...` and `W[k_] -= ...`  ???
+                #     print 'dK_dW shape: {}'.format(dK_dW.shape)
+                #     # TODO: if (1 - v + v' > 0) : update
+                #     W += self.learning_rate * dK_dW * self.lamb2
+                #     self.update(W=W, b=b)
 
             self.save_weights(save_file)
 
@@ -330,7 +333,7 @@ class Model:
             print '\tit {} | change in cost: {}'.format(epoch, final_obj - cost_prev)
             cost_prev = final_obj
 
-            accuracy = self.compute_accuracy2(D[:100], topn=20)
+            accuracy = self.compute_accuracy2(D[-100:], topn=20)
             print '\taccuracy {}'.format(accuracy)
 
 

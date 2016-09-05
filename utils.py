@@ -551,8 +551,8 @@ def mat_to_triplets(mat_data, word2idx):
             img_rels = [img_rels]
 
         for r in img_rels:
-            s,v,o   = r.phrase
-            sub_id  = (datum.filename, s, box_to_coords(*r.subBox))
+            s,v,o  = r.phrase
+            sub_id = (datum.filename, s, box_to_coords(*r.subBox))
             obj_id = (datum.filename, o, box_to_coords(*r.objBox))
 
             i = word2idx['obj'][s]
@@ -562,3 +562,16 @@ def mat_to_triplets(mat_data, word2idx):
             D.append((R, sub_id, obj_id))
 
     return D
+
+
+
+from collections import defaultdict
+
+def batch_triplets(D):
+    E = defaultdict(lambda: list())
+
+    for d in D:
+        fname = d[1][0]
+        E[fname].append(d)
+
+    return E.values()
