@@ -36,6 +36,6 @@ Ds  = batch_triplets(D)
 # --------------------------------------------------------------------------------------------------
 # Run model
 
-model = Model(obj_probs, rel_feats, w2v, word2idx, learning_rate=0.1, max_iters=50, noise=1.0)
+model = Model(obj_probs, rel_feats, w2v, word2idx, learning_rate=0.1, lamb1=5e-2, max_iters=50, noise=1.0)
 #import ipdb; ipdb.set_trace()
-model.SGD(Ds)
+model.SGD(Ds[:-50])

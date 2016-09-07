@@ -236,6 +236,11 @@ class Model:
         W, b, Z, s = (self.W, self.b, self.Z, self.s)
         cost_prev = 0.0
 
+        flatten = lambda ls: [i for subl in ls for i in subl]
+        Df = flatten(Ds)
+
+        #Ds = [Df[:1000]]
+
         for epoch in range(self.max_iters):
 
             # Use to get change in cost (mc = mean cost)
@@ -244,27 +249,10 @@ class Model:
             for D in tqdm(Ds):
 
                 # Iterate over data points (stochastically)
-                for R, O1, O2 in D:
+                for R, O1, O2 in tqdm(D):
 
-                    # Get (R, O1, O2) that maximizes term in equation 6
-                    D_ = [(R_,O1_,O2_) for R_,O1_,O2_ in D if (R_ != R) and (O1_ != O1 or O2_ != O2)]
-                    M = sorted(D_, key=lambda (R,O1,O2): -V(R,O1,O2) * f(R))
-                    # # TODO Parallelism
-                    # M = []
-                    # for b in range(len(D)):
-                    #     D_batch = D[b:b+n_proc]
-                    #     mapfun = lambda R,O1,O2: (V(R,O1,O2) * f(R), (R,O1,O2))
-                    #     M += = MPI_map(mapfun, D_batch, n_proc=n_proc)
-                    # M = zip(*sorted(M))[1]
-                    R_,O1_,O2_ = M[0]
 
                     i,j,k = R
-                    i_,j_,k_ = R_
-
-                    # Compute value for ` max{cost, 0} ` in equation 6
-                    cost = max(1. - V(R,O1,O2) * f(R) + V(R_,O1_,O2_) * f(R_), 0.)
-                    mc  += cost / len(D)
-
 
                     # Even epochs --> update W,b
                     if epoch % 2 == 0:
@@ -281,29 +269,54 @@ class Model:
                                 self.update(W=W, b=b)
 
                         # Equation 6
+                        # Get (R, O1, O2) that maximizes term in equation 6
+                        D_ = [(R_,O1_,O2_) for R_,O1_,O2_ in D if (R_ != R) and (O1_ != O1 or O2_ != O2)]
+                        R_,O1_,O2_ = min(D_, key=lambda (R,O1,O2): -V(R,O1,O2) * f(R)) if D_ else (R,O1,O2)
+                        i_,j_,k_ = R_
+
+                        # Compute value for ` max{cost, 0} ` in equation 6
+                        cost = max(1. - V(R,O1,O2) * f(R) + V(R_,O1_,O2_) * f(R_), 0.)
+                        mc  += cost / len(Df)
                         if cost > 0:
                             lr = self.learning_rate
-                            v = V(R,O1,O2)
-                            W[k]  -= self.learning_rate * v * np.concatenate((w2v[i], w2v[j]))
-                            b[k]  -= self.learning_rate * v
-                            v_ = V(R_,O1_,O2_)
-                            W[k_] += self.learning_rate * v_ * np.concatenate((w2v[i_], w2v[j_]))
-                            b[k_] += self.learning_rate * v_
+                            W[k]  -= self.learning_rate * np.concatenate((w2v[i], w2v[j]))
+                            b[k]  -= self.learning_rate
+                            W[k_] += self.learning_rate * np.concatenate((w2v[i_], w2v[j_]))
+                            b[k_] += self.learning_rate
+                            #v = V(R,O1,O2)
+                            #W[k]  -= self.learning_rate * v * np.concatenate((w2v[i], w2v[j]))
+                            #b[k]  -= self.learning_rate * v
+                            #v_ = V(R_,O1_,O2_)
+                            #W[k_] += self.learning_rate * v_ * np.concatenate((w2v[i_], w2v[j_]))
+                            #b[k_] += self.learning_rate * v_
                             self.update(W=W, b=b)
 
 
                     # Odd epochs --> update Z,s
                     else:
+                        # Get (R, O1, O2) that maximizes term in equation 6
+                        D_ = [(R_,O1_,O2_) for R_,O1_,O2_ in D if (R_ != R) and (O1_ != O1 or O2_ != O2)]
+                        R_,O1_,O2_ = min(D_, key=lambda (R,O1,O2): -V(R,O1,O2) * f(R)) if D_ else (R,O1,O2)
+                        i_,j_,k_ = R_
+
+                        # Compute value for ` max{cost, 0} ` in equation 6
+                        cost = max(1. - V(R,O1,O2) * f(R) + V(R_,O1_,O2_) * f(R_), 0.)
+                        mc  += cost / len(Df)
+
                         # Equation 6
                         if cost > 0:
                             id_rel  = objs_to_reluid(O1, O2)
                             id_rel_ = objs_to_reluid(O1_, O2_)
                             lr = self.learning_rate
 
-                            Z[k]  -= lr * f(R)  * obj_probs[O1][i]   * obj_probs[O2][j]   * rel_feats[id_rel]
-                            s[k]  -= lr * f(R)  * obj_probs[O1][i]   * obj_probs[O2][j]
-                            Z[k_] += lr * f(R_) * obj_probs[O1_][i_] * obj_probs[O2_][j_] * rel_feats[id_rel_]
-                            s[k_] += lr * f(R_) * obj_probs[O1_][i_] * obj_probs[O2_][j_]
+                            Z[k]  -= lr * obj_probs[O1][i]   * obj_probs[O2][j]   * rel_feats[id_rel]
+                            s[k]  -= lr * obj_probs[O1][i]   * obj_probs[O2][j]
+                            Z[k_] += lr * obj_probs[O1_][i_] * obj_probs[O2_][j_] * rel_feats[id_rel_]
+                            s[k_] += lr * obj_probs[O1_][i_] * obj_probs[O2_][j_]
+                            #Z[k]  -= lr * f(R)  * obj_probs[O1][i]   * obj_probs[O2][j]   * rel_feats[id_rel]
+                            #s[k]  -= lr * f(R)  * obj_probs[O1][i]   * obj_probs[O2][j]
+                            #Z[k_] += lr * f(R_) * obj_probs[O1_][i_] * obj_probs[O2_][j_] * rel_feats[id_rel_]
+                            #s[k_] += lr * f(R_) * obj_probs[O1_][i_] * obj_probs[O2_][j_]
                             self.update(Z=Z, s=s)
 
                 # # Equation 4  (W,b)
@@ -327,13 +340,14 @@ class Model:
 
             self.save_weights(save_file)
 
-            Lv = self.lamb1 * self.L(D)
-            Kv = self.lamb2 * self.K()
-            final_obj = np.array(mc, Lv, Kv)
+            #Lv = self.lamb1 * self.L(D)
+            #Kv = self.lamb2 * self.K()
+            #final_obj = np.array([mc, Lv, Kv])
+            final_obj = mc
             print '\tit {} | change in cost: {}'.format(epoch, final_obj - cost_prev)
             cost_prev = final_obj
 
-            accuracy = self.compute_accuracy2(D[-100:], topn=20)
+            accuracy = self.compute_accuracy2(flatten(Ds[-50:]), topn=20)
             print '\taccuracy {}'.format(accuracy)
 
 
@@ -354,7 +368,7 @@ class Model:
         Eq (4): randomly sample relationship pairs and minimize variance.
 
         """
-        R_dists = self.d(R1, R2) for R1, R2 in self.R_samples:
+        R_dists = [self.d(R1, R2) for R1, R2 in self.R_samples]
         return np.var(R_dists)
 
     def L(self, D):
