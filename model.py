@@ -209,8 +209,8 @@ class Model:
             return mean_ap
         # Recall @ k
         else:
-            hits = np.array(float(R in self.predict_Rs(O1, O2, topn)) for D in Ds for R, O1, O2 in D)
-            recall = hits.sum()[-1] / len(hits)
+            hits = sum(float(R in self.predict_Rs(O1, O2, topn)) for D in Ds for R, O1, O2 in D)
+            recall = hits / len(hits)
             return recall
 
     def SGD(self, Ds, save_file='data/models/vrd_weights.npy', recall_topn=100):
