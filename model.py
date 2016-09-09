@@ -60,6 +60,9 @@ class Model:
         self.n = obj_probs.values()[0].shape[0]
         self.k = w2v.shape[0] - self.n
 
+        self.V_dict = {}
+        self.f_dict = {}
+
         self.init_weights()
         self.init_R_samples()
 
@@ -102,12 +105,16 @@ class Model:
     def update(self, W=None, b=None, Z=None, s=None):
         if W is not None:
             self.W = W
+            self.f_dict = {}
         if b is not None:
             self.b = b
+            self.f_dict = {}
         if Z is not None:
             self.Z = Z
+            self.V_dict = {}
         if s is not None:
             self.s = s
+            self.V_dict = {}
 
     # -------------------------------------------------------------------------------------------------------
 
@@ -133,10 +140,13 @@ class Model:
         Reduce relationship <i,j,k> to scalar language space.
 
         """
-        i,j,k = R
-        W,b = (self.W, self.b)
-        wvec = self.word_vec(i, j)
-        return np.dot(W[k].T, wvec) + b[k]
+        if R not in self.f_dict:
+            i,j,k = R
+            W,b = (self.W, self.b)
+            wvec = self.word_vec(i, j)
+            self.f_dict[R] = np.dot(W[k].T, wvec) + b[k]
+
+        return self.f_dict[R]
 
     def V(self, R, O1, O2):
         """
@@ -145,12 +155,19 @@ class Model:
         """
         i,j,k = R
         rel_uid = objs_to_reluid(O1, O2)
-        cnn = self.rel_feats[rel_uid]
-        Z,s = (self.Z, self.s)
+
 
         P_i = self.obj_probs[O1][i]
         P_j = self.obj_probs[O2][j]
-        P_k = np.dot(Z[k], cnn) + s[k]
+
+        key = rel_uid+(k,)
+        if key not in self.V_dict:
+            cnn = self.rel_feats[rel_uid]
+            Z,s = (self.Z, self.s)
+            self.V_dict[key] = np.dot(Z[k], cnn) + s[k]
+
+        P_k = self.V_dict[key]
+
         return P_i * P_j * P_k
 
 
