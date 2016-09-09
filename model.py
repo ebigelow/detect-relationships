@@ -184,17 +184,8 @@ class Model:
         M = sorted(Rs, key=lambda R: -self.V(R,O1,O2) * self.f(R))
         return M[:topn]
 
-    def compute_accuracy(self, GT, k=None):
+    def compute_accuracy(self, Ds, topn=100):
         """
-        TODO
-        ----
-        input should be list of (R, O1, O2) for each relationship in each image
-
-
-
-        - X: list of predictions `x` for each data point, sorted by confidence
-        - Ys: list of ground truth labels `y` for each data point
-        - each data point should be an `(i,j,k)` tuple
 
         MAP
         ---
@@ -203,13 +194,11 @@ class Model:
 
         Recall @ k
         ----------
-        is the correct label within the top k predictions?
+        is the correct label for <O1,O2> within the top k predictions?
 
         """
-        test_data = [(self.predict_Rs(O1, O2), R) for R, O1, O2 in GT]
-
         # MAP
-        if k is None:
+        if topn == 'map':
             mean_ap = 0.0
             for X, Y in test_data:
                 rank = lambda y: float(X.index(y) + 1)
@@ -220,13 +209,11 @@ class Model:
             return mean_ap
         # Recall @ k
         else:
-            recall = 0.0
-            for X in test_data:
-                z = float(len(Y) * len(test_data))
-                recall += sum((y in X[:k]) for y in Y) / z
+            hits = np.array(float(R in self.predict_Rs(O1, O2, topn)) for D in Ds for R, O1, O2 in D)
+            recall = hits.sum()[-1] / len(hits)
             return recall
 
-    def SGD(self, Ds, save_file='data/models/vrd_weights.npy'):
+    def SGD(self, Ds, save_file='data/models/vrd_weights.npy', recall_topn=100):
         """
         Perform SGD over eqs 5 (L) 6 (C)
 
@@ -347,8 +334,8 @@ class Model:
             print '\tit {} | change in cost: {}'.format(epoch, final_obj - cost_prev)
             cost_prev = final_obj
 
-            accuracy = self.compute_accuracy2(flatten(Ds[-50:]), topn=20)
-            print '\taccuracy {}'.format(accuracy)
+            recall = self.compute_accuracy(Ds[-50:], topn=recall_topn)
+            print '\recall @ {}: {}'.format(recall_topn, recall)
 
 
 
