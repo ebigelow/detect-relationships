@@ -177,19 +177,44 @@ class Model:
 
         """
         i,j,k = R
-        preds = [k_ for k_ in range(self.k)]
-        preds = sorted(preds, key=lambda x: -self.V((i,j,x),O1,O2) * self.f((i,j,x)))
-        return preds[:topn]
+        P = [(-self.V((i,j,x),O1,O2) * self.f((i,j,x)), (i,j,x)) for x in range(self.k)]
+        confs, preds = zip(*sorted(P))
+        return preds[:topn], confs[:topn]
+
+    def rel2str(self, R):
+        i,j,k = R
+        I = self.word2idx
+        idx2w = {'obj': {idx:w for w,idx in I['obj'].items()},
+                 'rel': {idx:w for w,idx in I['rel'].items()}}
+        return '-'.join([idx2w['obj'][i], idx2w['rel'][k], idx2w['obj'][j]])
+        
 
     def compute_accuracy2(self, D, topn=20):
         """
         Compute accuracy, predicting predicates only.
 
         """
-        predictions = [(self.predict_preds(R, O1, O2, topn), R[2]) for R, O1, O2 in D]
-        accuracy = np.mean([int(truth in p) for p,truth in predictions])
+        predictions = [(self.predict_preds(R, O1, O2, topn), R) for R, O1, O2 in D]
+
+        # TODO: new code
+        if topn == 20:
+            for (p, c), truth in predictions:
+                print 'GT: ' + self.rel2str(truth)
+                for p_, c_ in zip(p,c): print '\tR_:{} | conf: {}'.format(self.rel2str(p_),c_) 
+
+        accuracy = np.mean([int(truth in p) for (p,c),(_,_,truth) in predictions])
         return accuracy
 
+    def predict_Rs2(self, O1, O2, topn=100):
+        """
+        Full list of predictions `R`, sorted by confidence
+
+        """
+        N,K = (self.n, self.k)
+        Rs = [(i,j,k) for i in range(N) for j in range(N) for k in range(K)]
+        M = [(R, self.V(R,O1,O2) * self.f(R)) for R in Rs]
+        M = sorted(M, key=lambda x: -x[1])
+        return M[:topn]
 
     def predict_Rs(self, O1, O2, topn=100):
         """
@@ -226,11 +251,19 @@ class Model:
             return mean_ap
         # Recall @ k
         else:
-            hits = sum(float(R in self.predict_Rs(O1, O2, topn)) for D in Ds for R, O1, O2 in D)
+            predictions = [(R, self.predict_Rs(O1, O2, topn)) for D in Ds for R, O1, O2 in D]
+            hits = [(R in Rs) for R,Rs in predictions]
             recall = hits / len(hits)
+            if topn==20:
+                for R, Rs in predictions:
+                    print '~' * 30, '\nR: {}'.format(R)
+                    for R_ in Rs: print '\t{}'
             return recall
+            #hits = sum(float(R in self.predict_Rs(O1, O2, topn)) for D in Ds for R, O1, O2 in D)
+            #recall = hits / len(hits)
+            #return recall
 
-    def SGD(self, Ds, save_file='data/models/vrd_weights.npy', recall_topn=100):
+    def SGD(self, Ds, save_file='data/models/vrd_weights.npy', recall_topn=1):
         """
         Perform SGD over eqs 5 (L) 6 (C)
 
@@ -351,8 +384,9 @@ class Model:
             print '\tit {} | change in cost: {}'.format(epoch, final_obj - cost_prev)
             cost_prev = final_obj
 
-            recall = self.compute_accuracy(Ds[-50:], topn=recall_topn)
-            print '\recall @ {}: {}'.format(recall_topn, recall)
+            for q in [1, 5, 10, 20]:
+                recall = self.compute_accuracy2(flatten(Ds[-50:]), topn=q)
+                print '\ttop {} accuracy: {}'.format(q, recall)
 
 
 
