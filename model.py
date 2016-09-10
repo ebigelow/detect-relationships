@@ -170,8 +170,24 @@ class Model:
 
         return P_i * P_j * P_k
 
-
     def predict_preds(self, R, O1, O2, topn=20):
+        """
+        Predict predicate given object labels.
+        """
+        i,j,k = R
+        preds = [k_ for k_ in range(self.k)]
+        preds = sorted(preds, key=lambda x: -self.V((i,j,x),O1,O2) * self.f((i,j,x)))
+        return preds[:topn]
+
+    def compute_accuracy2(self, D, topn=20):
+        """
+        Compute accuracy, predicting predicates only.
+        """
+        predictions = [(self.predict_preds(R, O1, O2, topn), R[2]) for R, O1, O2 in D]
+        accuracy = np.mean([int(truth in p) for p,truth in predictions])
+        return accuracy
+
+    def predict_preds2(self, R, O1, O2, topn=20):
         """
         Predict predicate given object labels.
 
@@ -189,18 +205,18 @@ class Model:
         return '-'.join([idx2w['obj'][i], idx2w['rel'][k], idx2w['obj'][j]])
         
 
-    def compute_accuracy2(self, D, topn=20):
+    def compute_accuracy3(self, D, topn=20):
         """
         Compute accuracy, predicting predicates only.
 
         """
         predictions = [(self.predict_preds(R, O1, O2, topn), R) for R, O1, O2 in D]
 
-        # TODO: new code
-        if topn == 20:
-            for (p, c), truth in predictions:
-                print 'GT: ' + self.rel2str(truth)
-                for p_, c_ in zip(p,c): print '\tR_:{} | conf: {}'.format(self.rel2str(p_),c_) 
+        ## TODO: new code
+        #if topn == 20:
+        #    for (p, c), truth in predictions:
+        #        print 'GT: ' + self.rel2str(truth)
+        #        for p_, c_ in zip(p,c): print '\tR_:{} | conf: {}'.format(self.rel2str(p_),c_) 
 
         accuracy = np.mean([int(truth in p) for (p,c),(_,_,truth) in predictions])
         return accuracy
