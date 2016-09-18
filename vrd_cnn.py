@@ -1,36 +1,63 @@
-import sys
+import tensorflow as tf
+from utils import loadmat, get_imdata, batch_images
+from vgg16 import CustomVgg16
 import numpy as np
-from utils import loadmat, get_data
-from cnn import load_cnn, train_cnn, test_cnn
+import os
+import sys
+sys.path.append('/u/ebigelow/lib/visual_genome_python_driver/')
+import src.local as vg
+from tqdm import tqdm
 
-# Prepare data
-obj_dict = {r:i for i,r in enumerate(loadmat('data/vrd/objectListN.mat')['objectListN'])}
-rel_dict = {r:i for i,r in enumerate(loadmat('data/vrd/predicate.mat')['predicate'])}
 
-a_train = loadmat('data/vrd/annotation_train.mat')['annotation_train']
-a_test  = loadmat('data/vrd/annotation_test.mat')['annotation_test'][:30]
+tf.app.flags.DEFINE_float('gpu_mem_fraction', 0.9, '')
 
-obj_test, rel_test = get_data(a_test, obj_dict, rel_dict, 'data/vrd/images/test/')
+tf.app.flags.DEFINE_string('which_net',    'objnet', '')
+tf.app.flags.DEFINE_integer('output_size', 100,      '')
+tf.app.flags.DEFINE_integer('batch_size',  10,       '')
 
-ckpt_file = 'ckpt/model1.ckpt'
-meta_epochs = 20
-batch_len = np.ceil(float(len(a_train)) / meta_epochs).astype(int)
+tf.app.flags.DEFINE_string('weights',   'data/models/objnet/vgg16_trained3.npy', 'Load weights from this file')
+tf.app.flags.DEFINE_string('save_file', 'data/models/objnet/feature_dict.npy',  'Save layer output here')
+tf.app.flags.DEFINE_string('layer',     'fc7', '')
 
-for e in range(0, meta_epochs):
-    print '~~~~~ Meta Batch: {}, [{}:{}] ~~~~~'.format(e, e*batch_len, (e+1)*batch_len)
-    iter_data = a_train[e*batch_len : (e+1)*batch_len]
-    obj_data, rel_data = get_data(iter_data, obj_dict, rel_dict, 'data/vrd/images/train/')
+# tf.app.flags.DEFINE_string('obj_list', 'data/vrd/objectListN.mat', '')
+# tf.app.flags.DEFINE_string('rel_list', 'data/vrd/predicate.mat',   '')
 
-    obj_params = {'cnn_dir':'data/models/objnet/',
-                  'ckpt_file':ckpt_file,
-                  'new_layer':100 }
-    train_cnn(obj_data, batch_size=10, init_weights='data/models/objnet/vgg16.npy', **obj_params)
-    o_accuracy = test_cnn(obj_test, **obj_params)
-    print '{} | Object Accuracy: {}'.format(e, o_accuracy)
+tf.app.flags.DEFINE_string('mat_file', 'data/vrd/annotation_train.mat', '')
+tf.app.flags.DEFINE_string('img_dir',  'data/vrd/images/train/',        '')
 
-    rel_params = {'cnn_dir':'data/models/relnet/',
-                  'ckpt_file':ckpt_file,
-                  'new_layer':70 }
-    train_cnn(rel_data, batch_size=10, init_weights='data/models/relnet/vgg16.npy', **rel_params)
-    r_accuracy = test_cnn(rel_test, **rel_params)
-    print '{} | Relationship Accuracy: {}'.format(e, r_accuracy)
+tf.app.flags.DEFINE_string('mean_file', 'mean.npy', '')
+
+FLAGS = tf.app.flags.FLAGS
+
+
+if __name__ == '__main__':
+
+    images_var = tf.placeholder('float', [FLAGS.batch_size, 224, 224, 3])
+    net = CustomVgg16(FLAGS.weights)
+    net.build(images_var, train=False, output_size=FLAGS.output_size)
+
+    gpu_fraction = tf.GPUOptions(per_process_gpu_memory_fraction=FLAGS.gpu_mem_fraction)
+    session_init = lambda: tf.Session(config=tf.ConfigProto(gpu_options=(gpu_fraction)))
+
+    mat                = loadmat(FLAGS.mat_file)[FLAGS.mat_file.split('/')[-1].split('.')[0]]
+    obj_data, rel_data = get_imdata(mat)
+    imdata             = obj_data if FLAGS.which_net == 'objnet' else rel_data
+    import ipdb; ipdb.set_trace()
+
+    mean        = np.load(FLAGS.mean_file)
+    img_batcher = batch_images(imdata, FLAGS.img_dir, mean, batch_len=FLAGS.batch_size)
+
+    layer = getattr(net, FLAGS.layer)
+    feature_dict = {}
+
+    with session_init() as sess:
+        tf.initialize_all_variables().run()
+
+        for idx2uid, batch_imgs in tqdm(img_batcher):
+            feed_dict = {images_var: batch_imgs}
+            out = sess.run(layer, feed_dict=feed_dict)
+
+            for idx, uid in idx2uid.items():
+                feature_dict[uid] = out[idx]
+
+    np.save(FLAGS.save_file, feature_dict)

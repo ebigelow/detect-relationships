@@ -75,6 +75,9 @@ def rel_coords(scene_graphs):
 # Visual Genome Only
 # ------------------
 
+
+
+
 def fix_r(r):
     if r.predicate == 'of':
         r.predicate = 'NULL'
@@ -86,12 +89,31 @@ def fix_r(r):
     r.object = fix_o(r.object)
     return r
 
-def fix_o(o):
-    if o.names[0] == 'windw':
-        o.names[0] = 'window'
-    if o.names[0] == 'sky light':
-        o.names[0] = 'skylight'
-    return o
+# def fix_o(o):
+#
+#     removes = ['of','the', 'to']
+#
+#     if o.names[0] == 'windw':
+#         o.names[0] = 'window'
+#     if o.names[0] == 'sky light':
+#         o.names[0] = 'skylight'
+#
+#
+#
+#     s = w.replace(' ','_')
+#     if s in M:
+#         return M[s]
+#     elif w == 'traffic light':
+#         return M['traffic_signalization']
+#
+#     cond w:
+#     {'street lamp': 'streetlight',
+#      'white clouds': 'clouds',
+#      'a':  , # TODO: DELETE --> also delete other preds!
+#      'street light': 'streetlight'}
+#
+#
+#     return o
 
 def fix_names(scene_graphs):
     for sg in scene_graphs:
@@ -158,8 +180,8 @@ def sg_to_triplets(scene_graphs, word2idx):
         img_id = sg.image.id
         for rel in sg.relationships:
             R = convert_rel(rel, word2idx)
-            O1 = id_(img_id, rel.subject.id)
-            O2 = id_(img_id, rel.object.id)
+            O1 = rel.subject.id
+            O2 = rel.object.id
             D.append((R, O1, O2))
 
     return D
@@ -171,21 +193,6 @@ def sg_to_triplets(scene_graphs, word2idx):
 # Visual Genome Only
 # ------------------
 
-def get_w2v(w, M):
-    """
-    this fixes words for VRD only
-
-    """
-    removes = ['of','the', 'to']
-
-    s = w.replace(' ','_')
-    if s in M:
-        return M[s]
-    elif w == 'traffic light':
-        return M['traffic_signalization']
-    else:
-        ls = [x for x in  w.split(' ') if x not in removes]
-        return reduce(np.add, [M[word] for word in ls])
 
 def save_w2v(word2idx, w2v_bin='data/word2vec/GoogleNews-vectors-negative300.bin'):
     w2v = make_w2v(word2idx, w2v_bin)
@@ -320,6 +327,78 @@ def _todict(matobj):
     return dict
 
 
+
+
+
+
+
+
+
+
+# ---------------------------------------------------------------------------------------------------------
+# scene graphs to cnn training data
+
+def sg_indexes(scene_graphs, label_dict):
+    for sg in scene_graphs:
+        for r in sg.relationships:
+            for y in reversed(r.synset):
+                if y in label_dict['rel']:
+                    r.index = label_dict['rel'][y]
+        for o in sg.objects:
+            for y in reversed(o.synsets):
+                if y in label_dict['obj']:
+                    o.index = label_dict['obj'][y]
+    return scene_graphs
+
+def load_sg_batcher(data_dir, data_id_dir, label_dict, start_idx=0, end_idx=-1,
+                    batch_size=10, data_epochs=20, which_net='objnet',
+                    img_dir='data/vg/images/', img_mean=None):
+    import sys
+    sys.path.append('/Users/eric/code/visual_genome_python_driver/')
+    import src.local as vg
+
+    n, k = (len(label_dict['obj']), len(label_dict['rel']))
+    N = end_idx - start_idx
+    batch_len = np.ceil(float(N) / data_epochs).astype(int)
+
+    for e in range(data_epochs):
+        scene_graphs = vg.GetSceneGraphs(start_idx, end_idx, data_dir, data_id_dir)
+        scene_graphs = rel_coords(scene_graphs)
+        scene_graphs = sg_indexes(scene_graphs, label_dict)
+        obj_meta, rel_meta = get_sg_data(scene_graphs, img_mean, img_dir, n, k)
+
+        if which_net == 'objnet':
+            yield batchify_data(obj_meta, batch_size)
+        else:
+            yield batchify_data(rel_meta, batch_size)
+
+def get_sg_data(scene_graphs, img_mean, img_dir, n_objs=600, n_rels=100):
+    obj_data = []
+    rel_data = []
+
+    for sg in scene_graphs:
+        img = imread(img_dir + sg.image.url)
+
+        for r in sg.relationships:
+            s, o = (r.subject, r.object)
+            img_s = square_crop(img, 224, s.x, s.y, s.width, s.height) - img_mean
+            img_o = square_crop(img, 224, o.x, o.y, o.width, o.height) - img_mean
+            img_r = square_crop(img, 224, r.x, r.y, r.width, r.height) - img_mean
+
+            sd = np.zeros((n_objs));  sd[s.index] = 1
+            od = np.zeros((n_objs));  od[o.index] = 1
+            rd = np.zeros((n_rels));  rd[r.index] = 1
+
+            obj_data.append((img_s, sd))
+            obj_data.append((img_o, od))
+            rel_data.append((img_r, rd))
+
+    return list(obj_data), list(rel_data)
+
+
+
+
+
 # ---------------------------------------------------------------------------------------------------------
 # .mat files to data
 
@@ -386,9 +465,6 @@ def batchify_data(data, batch_size):
 
 # ---------------------------------------------------------------------------------------------------------
 # Scene graph to data
-
-def id_(a, b):
-    return str(a) + '_' + str(b)
 
 def parse_scenes(scene_graphs):
     """
@@ -457,7 +533,7 @@ def test_cnn(net, ground_truth, N_test=1000, which_net='objnet',
 # For `extract_cnn.py`
 
 
-def batch_images(imdata, img_dir, mean, batch_len=10, crop_size=224):
+def batch_mats(imdata, img_dir, mean, batch_len=10, crop_size=224):
 
     im_path = lambda fn: os.path.join(img_dir, fn)
     fnames, labels, coords = zip(*imdata)
@@ -488,7 +564,63 @@ def batch_images(imdata, img_dir, mean, batch_len=10, crop_size=224):
 
 
 
-def get_imdata(mat):
+# def batch_scene_graphs(sg_imdata, img_dir, mean, batch_len=10, crop_size=224):
+#
+#     im_path = lambda fn: os.path.join(img_dir, fn)
+#     fnames, uids, coords = zip(*sg_imdata)
+#
+#     for b in xrange(0, len(scene_graphs), batch_len):
+#
+#         batch_fnames = fnames[b:b + batch_len]
+#         batch_uids   = uids[b:b + batch_len]
+#         batch_coords = coords[b:b + batch_len]
+#
+#         batch_imgs   = [imread(im_path(fn)) - mean for fn in batch_fnames]
+#         batch_imdata = zip(batch_imgs, batch_coords)
+#
+#         batch_crops  = [square_crop(img, crop_size, *co)[None, ...] for img, co in batch_imdata]
+#         batch_crops  = np.concatenate(batch_crops, axis=0)
+#         batch_crops -= mean
+#
+#         idx2uid = {idx:uid for idx, uid in enumerate(batch_uids)}
+#
+#         # TODO: make sure idxs refer to original imgs, not padding
+#         pad_len = batch_len - len(batch_uids)
+#         if pad_len > 0:
+#             pad_imgs = np.zeros((pad_len, crop_size, crop_size, 3))
+#             batch_crops = np.concatenate([batch_crops, pad_imgs], axis=0)
+#
+#         yield idx2uid, batch_crops
+#
+#
+#
+
+#
+# def sg_to_imdata(scene_graphs):
+#     """
+#     Use filename, phrase, & coords as UID, since there are no object/rel ids.
+#
+#     """
+#     obj_data = set()
+#     rel_data = set()
+#
+#     for sg in scene_graphs:
+#         for r in sg.relationships:
+#             s,o = (r.subject.id, r.object.id)
+#             O1 = (datum.filename, s, box_to_coords(*r.subBox))
+#             O2 = (datum.filename, o, box_to_coords(*r.objBox))
+#             reluid = objs2reluid_vrd(O1, O2)
+#
+#             reluid = frozenset([O1, O2])
+#
+#             obj_data.update({O1, O2})
+#             rel_data.add(reluid)
+#
+#     return list(obj_data), list(rel_data)
+
+
+
+def mat_to_imdata(mat):
     """
     Use filename, phrase, & coords as UID, since there are no object/rel ids.
 
@@ -509,7 +641,7 @@ def get_imdata(mat):
             s,v,o = r.phrase
             O1 = (datum.filename, s, box_to_coords(*r.subBox))
             O2 = (datum.filename, o, box_to_coords(*r.objBox))
-            reluid = objs_to_reluid(O1, O2)
+            reluid = objs2reluid_vrd(O1, O2)
 
             obj_data.update({O1, O2})
             rel_data.add(reluid)
@@ -520,8 +652,10 @@ def get_imdata(mat):
 def box_to_coords(ymin, ymax, xmin, xmax):
     return xmin, ymin, (xmax-xmin), (ymax-ymin)
 
+def objs2reluid_vg(O1, O2):
+    return frozenset([O1, O2])
 
-def objs_to_reluid(O1, O2):
+def objs2reluid_vrd(O1, O2):
     fname, o1, coords1 = O1
     fname, o2, coords2 = O2
 

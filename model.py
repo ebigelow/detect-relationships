@@ -4,7 +4,7 @@ import numpy as np
 from numpy.random import randint
 from scipy.spatial.distance import cosine
 from tqdm import tqdm, trange
-from utils import objs_to_reluid
+from utils import objs2reluid_vrd, objs2reluid_vg
 
 class Model:
     """
@@ -44,7 +44,7 @@ class Model:
 
     """
     def __init__(self, obj_probs, rel_feats, w2v, word2idx,
-                 noise=0.05, learning_rate=1.0, max_iters=20,
+                 data_set='vg', noise=0.05, learning_rate=1.0, max_iters=20,
                  num_samples=500000, lamb1=0.05, lamb2=0.001):
         self.obj_probs     = obj_probs
         self.rel_feats     = rel_feats
@@ -57,8 +57,10 @@ class Model:
         self.lamb1         = lamb1
         self.lamb2         = lamb2
 
-        self.n = obj_probs.values()[0].shape[0]
-        self.k = w2v.shape[0] - self.n
+        self.objs2reluid = objs2reluid_vg if data_set=='vg' else objs2reluid_vrd
+
+        self.n = len(w2v['obj'])
+        self.k = len(w2v['rel'])
 
         self.V_dict = {}
         self.f_dict = {}
@@ -120,9 +122,9 @@ class Model:
 
     def w2v_dist(self, R1, R2):
         N, w2v = (self.n, self.w2v)
-        return cosine(w2v[R1[0]],   w2v[R2[0]]) +  \
-               cosine(w2v[R1[1]],   w2v[R2[1]]) +  \
-               cosine(w2v[N+R1[2]], w2v[N+R2[2]])
+        return cosine(w2v['obj'][R1[0]],   w2v['obj'][R2[0]]) +  \
+               cosine(w2v['obj'][R1[1]],   w2v['obj'][R2[1]]) +  \
+               cosine(w2v['rel'][N+R1[2]], w2v['rel'][N+R2[2]])
 
     def d(self, R1, R2):
         """
@@ -154,8 +156,7 @@ class Model:
 
         """
         i,j,k = R
-        rel_uid = objs_to_reluid(O1, O2)
-
+        rel_uid = self.objs2reluid(O1, O2)
 
         P_i = self.obj_probs[O1][i]
         P_j = self.obj_probs[O2][j]
@@ -203,7 +204,7 @@ class Model:
         idx2w = {'obj': {idx:w for w,idx in I['obj'].items()},
                  'rel': {idx:w for w,idx in I['rel'].items()}}
         return '-'.join([idx2w['obj'][i], idx2w['rel'][k], idx2w['obj'][j]])
-        
+
 
     def compute_accuracy3(self, D, topn=20):
         """
@@ -216,7 +217,7 @@ class Model:
         #if topn == 20:
         #    for (p, c), truth in predictions:
         #        print 'GT: ' + self.rel2str(truth)
-        #        for p_, c_ in zip(p,c): print '\tR_:{} | conf: {}'.format(self.rel2str(p_),c_) 
+        #        for p_, c_ in zip(p,c): print '\tR_:{} | conf: {}'.format(self.rel2str(p_),c_)
 
         accuracy = np.mean([int(truth in p) for (p,c),(_,_,truth) in predictions])
         return accuracy
@@ -284,18 +285,15 @@ class Model:
         Perform SGD over eqs 5 (L) 6 (C)
 
         """
-        obj_probs, rel_feats, w2v = (self.obj_probs, self.rel_feats, self.w2v)
+        obj_probs, rel_feats, w2v = (self.obj_probs, self.rel_feats, self.w2v['obj'])
         V, f, d = (self.V, self.f, self.d)
         W, b, Z, s = (self.W, self.b, self.Z, self.s)
         cost_prev = 0.0
 
         flatten = lambda ls: [i for subl in ls for i in subl]
-        Df = flatten(Ds)
-
-        #Ds = [Df[:1000]]
+        # Df = flatten(Ds)
 
         for epoch in range(self.max_iters):
-
             # Use to get change in cost (mc = mean cost)
             mc = 0.0
 
@@ -303,8 +301,6 @@ class Model:
 
                 # Iterate over data points (stochastically)
                 for R, O1, O2 in tqdm(D):
-
-
                     i,j,k = R
 
                     # Even epochs --> update W,b
@@ -410,7 +406,7 @@ class Model:
     # Helper Methods
 
     def word_vec(self, i, j):
-        return np.concatenate((self.w2v[i], self.w2v[j]))
+        return np.concatenate((self.w2v['obj'][i], self.w2v['obj'][j]))
 
 
 

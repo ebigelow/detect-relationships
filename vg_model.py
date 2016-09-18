@@ -1,37 +1,49 @@
-import sys
 import numpy as np
-from detect import ConvNets, Model
-from utils import make_word_list, make_w2v, make_w2v_dict
+from utils import sg_to_triplets, batch_triplets
+from model import Model
 
-# sys.path.append('/Users/eric/code/visual_genome_python_driver')
+import sys
 sys.path.append('/localdisk/ebigelow/lib/visual_genome_python_driver')
 import src.local as vg
 
 
-# scene_graphs = vg.GetSceneGraphs(0, -1, maxRels=100000)
-scene_graphs = vg.GetSceneGraphsModified(0, -1, maxRels=100000)
-# 82239 scene graphs
-# 1641647 objects
-# 705317 relationships
+# --------------------------------------------------------------------------------------------------
+# Arguments
+
+# obj_mat   = 'data/vrd/objectListN.mat'
+# rel_mat   = 'data/vrd/predicate.mat'
+# w2v_file  = 'data/word2vec/w2v.npy'
+# obj_file  = 'data/models/objnet/obj_probs.npy'
+# rel_file  = 'data/models/relnet/rel_feats.npy'
+# train_mat = 'data/vrd/annotation_train.mat'
+
+json_dir    = 'data/vg/json/'
+json_id_dir = 'data/vg/json/by-id/'
+w2v_file    = 'data/word2vec/vg_w2v.npy'
+
+obj_file  = 'data/models/objnet/vg_obj_probs.npy'
+rel_file  = 'data/models/relnet/vg_rel_feats.npy'
+
+# --------------------------------------------------------------------------------------------------
+# Load data
+
+word2idx = TODO
+w2v = np.load(w2v_file)
 
 
-## sg1 = vg.GetSceneGraphs(200); sg2 = vg.GetSceneGraphs(205)
-## scene_graphs = [sg1, sg2, sg1, sg2, sg1, sg2, sg1, sg2, sg1, sg2]
+scene_graphs = vg.GetSceneGraphs(startIndex=0, endIndex=90000,
+                                 dataDir=json_dir, imageDataDir=json_id_dir,
+                                 minRels=1, maxRels=100)
 
-conv = ConvNets('data/model/', 'data/model/', 'data/img/')
-obj_probs, rel_feats, obj_dict, rel_dict = run_cnns(TODO: code)
+obj_probs = np.load(obj_file).item()
+rel_feats = np.load(rel_file).item()
 
-print '*'*100, '\nCNN STUFF DONE... now the hard part!!!!'
+D   = sg_to_triplets(scene_graphs, word2idx)
+Ds  = batch_triplets(D)
 
-n = 26
-k = 12
+# --------------------------------------------------------------------------------------------------
+# Run model
 
-word_list = make_word_list(scene_graphs, n)
-w2v_dict = make_w2v_dict(word_list)
-w2v = make_w2v(word_list)
-np.save('data/w2v.npy', w2v)
-# w2v = np.load('data/w2v.npy')
-
-model = Model(obj_probs, rel_feats, obj_dict, rel_dict, w2v, w2v_dict, n)
-D = model.load_data(scene_graphs)
-model.SGD(D)
+model = Model(obj_probs, rel_feats, w2v, word2idx, learning_rate=0.1, lamb1=5e-2, max_iters=50, noise=1.0)
+#import ipdb; ipdb.set_trace()
+model.SGD(Ds[:-50])
