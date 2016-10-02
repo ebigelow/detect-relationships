@@ -26,7 +26,6 @@ def tile(A, batch_size=None):
 class Model:
     """
     w2v
-    word2idx : map words to obj/pred index; w2i['obj']['llama'] == 42
     obj_probs : obj_probs[obj_uid] = (100,) final layer cnn output
     rel_feats : rel_feats[rel_uid] = (4096,) fc7 feature (PRESUMABLY this was used . . .)
     num_samples : number of random R samples to compute for equation 4
@@ -67,6 +66,16 @@ class Model:
         self.lamb1         = lamb1
         self.lamb2         = lamb2
         self.init_weights()
+
+    def save_npy(self, sess, file_path='./vgg.npy'):
+        assert isinstance(sess, tf.Session)
+        vars_ = [self.W, 'b':self.b, 'Z': self.Z, 's':self.s}
+        var_out = sess.run(vars_)
+        data_dict = {}
+
+        np.save(file_path, data_dict)
+        print 'file saved: {}'.format(file_path)
+
 
     def save_weights(self, filename):
         # TODO
@@ -148,16 +157,15 @@ class Model:
         accuracy = np.mean([int(truth in p) for p,truth in predictions])
         return accuracy
 
-    def predict_Rs(self, obj_probs, rel_feats, topn=100):
-        """
-        Full list of predictions `R`, sorted by confidence
+    # Equation (4)
+    def K(self, R_rand):
+        Rs1, Rs2 = (repeat(Rs), tile(Rs))
+        dists = tf.pow(self.f(Rs1) - self.f(Rs2), 2)
+        normed = tf.div(dists, self.d(Rs1, Rs2))
+        var = tf.nn.moments(normed, axes=0, name='K')       # (shift=None, keep_dims=False)
+        return var
 
-        """
-        N,K = (self.n, self.k)
-        Rs = [(i,j,k) for i in range(N) for j in range(N) for k in range(K)]
-        M = sorted(Rs, key=lambda R: -self.V(R,O1,O2) * self.f(R))
-        return M[:topn]
-
+    # Equation (5)
     def L(self, R_full):
         """
         Likelihood of relationships
@@ -179,6 +187,7 @@ class Model:
         relu = tf.reduce_max(rank, 0.0, axis=0)
         return tf.reduce_sum(relu)
 
+    # Equation (6)
     def C(self, D):
         """
         Rank loss function
@@ -205,6 +214,7 @@ class Model:
         rank_loss = tf.max(1.0 - V_truth + V_max, 0.0)
         return tf.reduce_sum(rank_loss)
 
+    # Equation (7)
     def loss(self, D, R_full):
         """
         Final objective loss function.
@@ -217,3 +227,14 @@ class Model:
         L = tf.mul(self.lamb1, self.L(R_full))
         K = tf.mul(self.lamb2, self.K())
         return C + L + K
+
+    # Equation (8)
+    def predict_Rs(self, obj_probs, rel_feats, topn=100):
+        """
+        Full list of predictions `R`, sorted by confidence
+
+        """
+        N,K = (self.n, self.k)
+        Rs = [(i,j,k) for i in range(N) for j in range(N) for k in range(K)]
+        M = sorted(Rs, key=lambda R: -self.V(R,O1,O2) * self.f(R))
+        return M[:topn]
