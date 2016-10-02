@@ -156,7 +156,7 @@ class CustomVgg16:
         var_list = [(var, name, D[name].index(var)) for name in D for var in D[name]]
         return zip(*var_list)
 
-    def save_npy(self, sess, save_path='./vgg.npy', upload_path=None):
+    def save_npy(self, sess, save_path='vgg.npy', upload_path=None):
         assert isinstance(sess, tf.Session)
         data_dict = {}
 
@@ -169,8 +169,8 @@ class CustomVgg16:
             data_dict[names[i]][idxs[i]] = var_out[i]
 
         np.save(save_path, data_dict)
-        if upload_path is not None:
-            subprocess.run(['skicka','-no-browser-auth','upload',upload_path])
+        if upload_path:
+            subprocess.call(['skicka','-no-browser-auth','upload',upload_path])
             print 'saved to: {}\nuploaded to: {}'.format(save_path, upload_path)
         else:
             print 'saved to: {}\nnot uploaded.'.format(save_path)
