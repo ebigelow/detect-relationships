@@ -5,9 +5,10 @@ import numpy as np
 
 tf.app.flags.DEFINE_float('gpu_mem_fraction', 0.9, '')
 
-tf.app.flags.DEFINE_string('which_net', 'objnet', '')
-tf.app.flags.DEFINE_string('init_path', 'data/models/vgg16.npy', 'Initial weights')
-tf.app.flags.DEFINE_string('save_path', 'data/models/objnet/vgg16_vg_trained.npy', 'Save weights to this file')
+tf.app.flags.DEFINE_string('which_net',   'objnet', 'either (objnet | relnet)')
+tf.app.flags.DEFINE_string('init_path',   'data/models/vgg16.npy', 'Initial weights')
+tf.app.flags.DEFINE_string('save_path',   'data/models/objnet/vgg16_vg_trained.npy', 'Save weights to this file')
+tf.app.flags.DEFINE_string('upload_path', 'detect-relationships/models/objnet/vgg16_vg_trained_{}.npy', 'Save weights to this file')
 
 tf.app.flags.DEFINE_integer('batch_size',  10,    '')
 tf.app.flags.DEFINE_integer('data_epochs', 20,    '')
@@ -16,9 +17,9 @@ tf.app.flags.DEFINE_integer('train_idx',   90000, '')
 
 tf.app.flags.DEFINE_string('img_dir',     'data/vg/images/', '')
 tf.app.flags.DEFINE_string('img_mean',    'mean.npy',        '')
-tf.app.flags.DEFINE_string('label_dict',  'data/vg/json/label_dict.npy', '')
-tf.app.flags.DEFINE_string('json_dir',    'data/vg/json/short/',         '')
-tf.app.flags.DEFINE_string('json_id_dir', 'data/vg/json/short/by-id/',   '')
+tf.app.flags.DEFINE_string('label_dict',  'data/vg/json/vg_short/label_dict.npy', '')
+tf.app.flags.DEFINE_string('json_dir',    'data/vg/json/vg_short/',         '')
+tf.app.flags.DEFINE_string('json_id_dir', 'data/vg/json/vg_short/by-id/',   '')
 
 FLAGS = tf.app.flags.FLAGS
 
@@ -55,9 +56,7 @@ if __name__ == '__main__':
     test_params['start_idx'] = FLAGS.train_idx
     test_params['end_idx']   = -1
 
-    #TODO: CPU ONLY
-    # with session_init() as sess:
-    with tf.Session() as sess:
+    with session_init() as sess:
         tf.initialize_all_variables().run()
 
         for e in range(FLAGS.meta_epochs):
@@ -81,4 +80,4 @@ if __name__ == '__main__':
             print ' => epoch {} acurracy: {}'.format(e, acc)
             if acc > best_acc:
                 best_acc = acc
-                net.save_npy(sess, file_path=FLAGS.save_path)
+                net.save_npy(sess, save_path=FLAGS.save_path, upload_path=FLAGS.upload_path)

@@ -11,9 +11,12 @@ GPU_FRACTION=0.9
 WHICH_NET="objnet"
 INIT_PATH="data/models/vgg16.npy"
 SAVE_PATH="data/models/objnet/vgg16_trained3.npy"
+UPLOAD_PATH="detect-relationships/models/objnet/vgg16_vg_trained_{}.npy"
+
 #WHICH_NET="relnet"
 #INIT_PATH="data/models/relnet/vgg16_trained.npy"
 #SAVE_PATH="data/models/relnet/vgg16_trained2.npy"
+#UPLOAD_PATH="detect-relationships/models/relnet/vgg16_vg_trained_{}.npy"
 
 BATCH_SIZE=10
 DATA_EPOCHS=25
@@ -31,6 +34,7 @@ python vg_train_cnn.py \
   --which_net $WHICH_NET \
   --init_path $INIT_PATH \
   --save_path $SAVE_PATH \
+  --upload_path $UPLOAD_PATH \
   --batch_size $BATCH_SIZE \
   --data_epochs $DATA_EPOCHS \
   --meta_epochs $META_EPOCHS \
