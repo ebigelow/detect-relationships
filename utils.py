@@ -6,6 +6,7 @@ import numpy as np
 import scipy.io as spio
 from cv2 import imread, resize
 import tensorflow as tf
+from collections import defaultdict
 
 
 # ---------------------------------------------------------------------------------------------------------
@@ -618,6 +619,60 @@ def batch_mats(imdata, img_dir, mean, batch_len=10, crop_size=224):
 #
 #     return list(obj_data), list(rel_data)
 
+# def tf_mat_batcher(data_dir, data_id_dir, start_idx, end_idx,
+#                    label_dict, batch_size, data_epochs,
+#                    which_net, img_dir, img_mean):
+
+def mat_to_tf(mat, word2idx, obj_probs, rel_feats,
+              n_=100, k_=70, batch_size=34):
+    """
+    """
+    D_imgs = defaultdict(lambda: list())
+    for datum in mat:
+        if not hasattr(datum, 'relationship'):
+            continue
+        img_rels = datum.relationship
+        if not hasattr(img_rels, '__getitem__'):
+            if not all(i in dir(img_rels) for i in ['objBox', 'phrase', 'subBox']):
+                print 'skipping relation, dir contains:', [_ for _ in dir(img_rels) if '_' not in _]
+                continue
+            img_rels = [img_rels]
+
+        for r in img_rels:
+            s,v,o  = r.phrase
+            i = word2idx['obj'][s]
+            j = word2idx['obj'][o]
+            k = word2idx['rel'][v]
+
+            sub_id = (datum.filename, s, box_to_coords(*r.subBox))
+            obj_id = (datum.filename, o, box_to_coords(*r.objBox))
+            rel_id = objs2reluid_vrd(sub_id, obj_id)
+            sub_prob = obj_probs[sub_id]
+            obj_prob = obj_probs[obj_id]
+            rel_feat = rel_feats[rel_id]
+
+            D_imgs[datum.filename].append([i, j, k, sub_prob, obj_prob, rel_feat])
+
+    for fname in D_imgs:
+        I, J, K, s_, o_, r_ = [np.vstack(x) for x in zip(*D_imgs[fname])]
+
+        # For padding, we add an extra dimension to obj_probs with zeros
+        #  (this will also ensure we never predict this class at test time)
+        n_rels = I.shape[0]
+        s_ = np.concatenate([s_, np.zeros((n_rels, 1))], axis=1)
+        o_ = np.concatenate([o_, np.zeros((n_rels, 1))], axis=1)
+        D_imgs[fname] = (I, J, K, s_, o_, r_)
+
+        pad_len = batch_size - n_rels
+        if pad_len > 0:
+            pad_q = lambda a,q: np.concatenate([a, q * np.ones((pad_len, a.shape[1]))], axis=0)
+            pad_z = lambda a:   np.concatenate([a,    np.zeros((pad_len, a.shape[1]))], axis=0)
+            D_imgs[fname] = [pad_q(I, n_), pad_q(J, n_), pad_q(K, k_),
+                             pad_z(s_),    pad_z(o_),   pad_z(r_)]
+
+    I, J, K, subs_, objs_, rels_ = zip(*D_imgs.values())
+    objs_final = [np.concatenate([s_[None, ...], o_[None, ...]], axis=0) for s_,o_ in zip(subs_, objs_)]
+    return I, J, K, objs_final, rels_
 
 
 def mat_to_imdata(mat):
@@ -652,9 +707,6 @@ def mat_to_imdata(mat):
 def box_to_coords(ymin, ymax, xmin, xmax):
     return xmin, ymin, (xmax-xmin), (ymax-ymin)
 
-def objs2reluid_vg(O1, O2):
-    return frozenset([O1, O2])
-
 def objs2reluid_vrd(O1, O2):
     fname, o1, coords1 = O1
     fname, o2, coords2 = O2
@@ -673,7 +725,6 @@ def objs2reluid_vrd(O1, O2):
 def mat_to_triplets(mat_data, word2idx):
     D = []
 
-    #import ipdb; ipdb.set_trace()
     for datum in mat_data:
         if not hasattr(datum, 'relationship'):
             continue
