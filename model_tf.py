@@ -244,46 +244,60 @@ class Model:
 
 
 
-# &&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&
-# TODO tf-ify
-
-    # Equation (8)
-    def predict_Rs(self, obj_probs, rel_feats, topn=100):
-        """
-        Full list of predictions `R`, sorted by confidence
-
-        """
-        N,K = (self.n, self.k)
-        Rs = [(i,j,k) for i in range(N) for j in range(N) for k in range(K)]
-        M = sorted(Rs, key=lambda R: -self.V(R,O1,O2) * self.f(R))
-        return M[:topn]
-
-    def predict_preds(self, D, topn=20):
-        """
-        Predict predicate given object labels.
-        """
-        (I,J,K), obj_probs, rel_feats = D
-        preds = [k_ for k_ in range(self.k)]
-        preds = sorted(preds, key=lambda x: -self.V((i,j,x),O1,O2) * self.f((i,j,x)))
-        return preds[:topn]
-
-    def compute_accuracy_batch(self, D, topn=20):
+    def compute_accuracy(self, ground_truth, top_k=20):
         """
         Compute accuracy, predicting predicates only.
         """
-        predictions = self.predict_preds(D, topn)
-        accuracy = np.mean([int(truth in p) for p,truth in predictions])
+        I, J, K = (ground_truth['I'], ground_truth['J'], ground_truth['K'])
+        obj_probs, rel_feats = (ground_truth['obj_probs'], ground_truth['rel_feats'])
+
+        predicts = self.predict_preds(I, J, obj_probs, rel_feats, top_k)
+        predictions = predicts.indices[:K.get_shape()[0], :]
+        gt = tf.tile(K[..., None], [1, top_k])
+        hits = tf.reduce_sum(tf.to_float(tf.equal(gt, predictions)), 1)
+
+        with tf.variable_scope('accuracy_top{}'.format(top_k)):
+            accuracy = tf.reduce_mean(hits)
+            tf.scalar_summary('accuracy_top{}'.format(top_k), accuracy)
         return accuracy
 
-    def compute_accuracy(self, D, topn=20):
-        """
-        Compute accuracy, predicting predicates only.
-        """
-        accuracies = compute_
-        with tf.variable_scope('accuracy'):
-            accuracy = tf.reduce_mean(accuracies)
-            tf.scalar_summary('accuracy', accuracy)
-        return accuracy
+    def predict_preds(self, I, J, obj_probs, rel_feats, top_k=20):
+        # Visual module
+        P_i = tf.diag_part(tf.gather(tf.transpose(obj_probs[0]), I))
+        P_j = tf.diag_part(tf.gather(tf.transpose(obj_probs[1]), J))
+        P_K = tf.reduce_sum(tf.matmul(rel_feats, self.Z, transpose_b=True), 1) + self.s
+        V = P_i * P_j * P_K
+
+        # Language module
+        w2v = self.w2v['obj']
+        wvec = tf.concat(1, [tf.gather(w2v, I), tf.gather(w2v, J)])
+        F = tf.matmul(self.W, wvec, transpose_b=True) + self.b
+
+        # Top N
+        with tf.variable_scope('predictions_top{}'.format(top_k)):
+            return tf.nn.top_k(tf.transpose(tf.mul(V, F)), k=top_k)
+
+
+    def predict_IJK(self, obj_probs, rel_feats, top_k=20):
+        # Visual module
+        P_I = tf.transpose(obj_probs[0])
+        P_J = obj_probs[1]
+        P_K = tf.reduce_sum(tf.matmul(rel_feats, self.Z), 1) + self.s
+        # (100 x batch) * (100 x batch) * (70 x batch)   ->   (100 x 100 x 70)
+        V = tf.add([ tf.matmul(  tf.matmul(P_I[:,b], P_J[b,:])[...,None],  P_K[b,:]  )
+                     for b in range(P_J.get_shape()[0])])
+
+        # Language module
+        w2v_obj = self.w2v['obj']
+        w2v_s = np.concatenate([w2v_obj, np.zeros_like(w2v_obj)], axis=1).T   # TODO: make sure transpose works
+        w2v_o = np.concatenate([np.zeros_like(w2v_obj), w2v_obj], axis=1).T   # new dim should be 600 x 100
+        # (600 x 100) * (600 x 100) * (600 x 70)   ->   (100 x 100 x 70)
+        F = tf.add([ tf.matmul(  tf.matmul(self.W[:,q], w2v_o[q,:])[...,None],  w2v_s[q,:]  )
+                     for q in range(w2v_s.get_shape()[0])])
+        F += self.b[None, None, ...]   # TODO: tile b??
+
+        # Top N
+        return tf.nn.top_k(tf.mul(V, F), top_k=top_k)
 
 
     def get_ground_truth(self, batch_size, n_rels):

@@ -663,6 +663,7 @@ def mat_to_tf(mat, word2idx, obj_probs, rel_feats,
         o_ = np.concatenate([o_, np.zeros((n_rels, 1))], axis=1)
         D_imgs[fname] = (I, J, K, s_, o_, r_)
 
+        # TODO this will break if batch_size < n_rels
         pad_len = batch_size - n_rels
         if pad_len > 0:
             pad_q = lambda a,q: np.concatenate([a, q * np.ones((pad_len, a.shape[1]))], axis=0)

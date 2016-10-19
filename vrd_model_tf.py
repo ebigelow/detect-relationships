@@ -7,7 +7,9 @@ from utils import load_sg_batcher
 # tf.app.flags.DEFINE_float('gpu_mem_fraction', 0.9, '')
 
 tf.app.flags.DEFINE_integer('epochs',     20,  '')
-tf.app.flags.DEFINE_integer('batch_size', 34,  '')
+tf.app.flags.DEFINE_integer('batch_size', 41,  '')
+tf.app.flags.DEFINE_integer('save_freq',  100, '')
+# tf.app.flags.DEFINE_integer('top_k',  200, '')
 # [max([i.shape for i in x]) for x in zip(*train_data)]
 
 tf.app.flags.DEFINE_float('lamb1', 0.05,  '')
@@ -20,9 +22,11 @@ tf.app.flags.DEFINE_string('rel_mat',   'data/vrd/predicate.mat',    '')
 tf.app.flags.DEFINE_string('train_mat', 'data/vrd/annotation_train.mat',  '')
 tf.app.flags.DEFINE_string('test_mat',  'data/vrd/annotation_test.mat',   '')
 
-tf.app.flags.DEFINE_string('w2v_file',  'data/vrd/w2v.npy',        '')
-tf.app.flags.DEFINE_string('obj_npy',   'data/vrd/obj_probs.npy',  '')
-tf.app.flags.DEFINE_string('rel_npy',   'data/vrd/rel_feats.npy',  '')
+tf.app.flags.DEFINE_string('w2v_file', 'data/vrd/w2v.npy',        '')
+tf.app.flags.DEFINE_string('obj_npy',  'data/vrd/obj_probs.npy',  '')
+tf.app.flags.DEFINE_string('rel_npy',  'data/vrd/rel_feats.npy',  '')
+tf.app.flags.DEFINE_string('obj_npy_test', 'data/vrd/obj_probs-vrd_test.npy',  '')
+tf.app.flags.DEFINE_string('rel_npy_test', 'data/vrd/rel_feats-vrd_test.npy',  '')
 
 tf.app.flags.DEFINE_string('summaries_dir',  'data/vrd/summaries/',   '')
 tf.app.flags.DEFINE_string('weights_file',   'data/vrd/weights',   '')
@@ -43,20 +47,17 @@ if __name__ == '__main__':
 
     obj_probs = np.load(FLAGS.obj_npy).item()
     rel_feats = np.load(FLAGS.rel_npy).item()
+    train_mat  = loadmat(FLAGS.train_mat)['annotation_train']
+    train_data = mat_to_tf(train_mat, word2idx, obj_probs, rel_feats,
+                           n_=100, k_=70, batch_size=FLAGS.batch_size)
 
-    train_mat = loadmat(FLAGS.train_mat)['annotation_train']
+    obj_probs_test = np.load(FLAGS.obj_npy_test).item()
+    rel_feats_test = np.load(FLAGS.rel_npy_test).item()
     test_mat  = loadmat(FLAGS.test_mat)['annotation_test']
-    # D = mat_to_triplets(mat, word2idx)
-    train_data = mat_to_tf(train_mat, word2idx, obj_probs, rel_feats)
-    t = 30
-    test_data  = [i[:t] for i in train_data]
-    train_data = [i[t:] for i in train_data]
-    # TODO!
-    # test_data  = mat_to_tf(test_mat,  word2idx, obj_probs, rel_feats, FLAGS.batch_size)
+    test_data = mat_to_tf(test_mat, word2idx, obj_probs_test, rel_feats_test,
+                          n_=100, k_=70, batch_size=FLAGS.batch_size)
 
-
-    #
-    # TODO everthing below here could be in a separate function!!!  (VRD vs. VG run files)
+    # TODO everthing below here could be in a separate function  (VRD vs. VG run files)
     # maybe... model_train(w2v, R_full, train_data, test_data, epochs,
     #                      batch_size, lamb1, lamb2, init_noise, learning_rate)
 
@@ -74,7 +75,9 @@ if __name__ == '__main__':
 
     model = Model(w2v, lamb1=FLAGS.lamb1, lamb2=FLAGS.lamb2, init_noise=FLAGS.init_noise)
     ground_truth = model.get_ground_truth(FLAGS.batch_size, n_rels)
-    #accuracy = model.get_accuracy(ground_truth)
+    accuracies = [model.compute_accuracy(ground_truth, top_k=top_k) for top_k in [1,5,10,20]]
+    # accuracy = model.compute_accuracy(ground_truth, top_k=10)
+    best_acc = 0.0
 
     cost = model.loss(ground_truth)
     with tf.variable_scope('train_op'):
@@ -113,19 +116,28 @@ if __name__ == '__main__':
 
             for db, data_batch in enumerate(train_data):
                 print '~~~~~~~~~~~~ DATA BATCH {}  | {}'.format(db, data_batch[0].shape)
+
+                # Testing
+                # -------
+                if db % FLAGS.save_freq == 0:
+                    accs = []
+                    for test_batch in test_data:
+                        feed_test = batch_to_feed(*test_batch)
+                        accs_ = [sess.run(a, feed_dict=feed_test) for a in accuracies]
+                        # sums_, accs_ = zip(*[sess.run([merged, a], feed_dict=feed_test) for a in accuracies])
+                        accs.append(accs_)
+                        # accs.append(sess.run(accuracy, feed_dict=feed_test))
+
+                    # test_writer.add_summary(sums_[2], db+(e*FLAGS.epochs))
+
+                    final_accs = [np.mean(a) for a in zip(*accs)]
+                    print '-> epoch {} batch {}\n\tAcurracies: 1:{}, 5:{}, 10:{}, 20:{}'.format(e, db, *final_accs)
+                    # print '-> epoch {} batch {}\n\tAcurracy 20:{}'.format(e, db, np.mean(accs))
+                    model.save_weights(sess, file_path=FLAGS.weights_file + '_{}-{}.npy'.format(e,db))
+
+                # Training
+                # --------
                 if db % 100 == 0:
-                    save_freq = 200    # TODO
-                    if db % save_freq == 0:
-                        model.save_weights(sess, file_path=FLAGS.weights_file + '_{}-{}.npy'.format(e,db))
-                    #     summary, acc = sess.run([merged, accuracy], feed_dict=feed_dict(False))
-                    #     test_writer.add_summary(summary, i)
-                    #     accs = []
-                    #     for test_batch in test_data:
-                    #         feed_test = batch_to_feed(*test_batch)
-                    #         accs.append(sess.run(accuracy, feed_dict=feed_test))
-                    #     acc = np.mean(accs)
-                    #     print ' => epoch {} batch {}  |  Acurracy: {}'.format(e, db, acc)
-                    #     if acc > best_acc:
                     feed_train = batch_to_feed(*data_batch)
 
                     # Record train set summaries, and train
@@ -142,7 +154,7 @@ if __name__ == '__main__':
                     feed_train = batch_to_feed(*data_batch)
                     summary, _ = sess.run([merged, train_op], feed_dict=feed_train)
 
-                train_writer.add_summary(summary, db)
+                train_writer.add_summary(summary, db+(e*FLAGS.epochs))
 
 
         train_writer.close()
