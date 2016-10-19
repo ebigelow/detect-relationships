@@ -3,19 +3,20 @@ import numpy as np
 from utils import loadmat, mat_to_tf
 from model_tf import Model
 from utils import load_sg_batcher
+from tqdm import tqdm, trange
 
-# tf.app.flags.DEFINE_float('gpu_mem_fraction', 0.9, '')
+tf.app.flags.DEFINE_float('gpu_mem_fraction', 0.9, '')
 
 tf.app.flags.DEFINE_integer('epochs',     20,  '')
 tf.app.flags.DEFINE_integer('batch_size', 41,  '')
-tf.app.flags.DEFINE_integer('save_freq',  100, '')
+tf.app.flags.DEFINE_integer('save_freq',  2000, '')
 # tf.app.flags.DEFINE_integer('top_k',  200, '')
 # [max([i.shape for i in x]) for x in zip(*train_data)]
 
 tf.app.flags.DEFINE_float('lamb1', 0.05,  '')
 tf.app.flags.DEFINE_float('lamb2', 0.001,  '')
-tf.app.flags.DEFINE_float('init_noise', 0.1,  '')
-tf.app.flags.DEFINE_float('learning_rate', 0.1,  '')
+tf.app.flags.DEFINE_float('init_noise', 1e-5,  '')
+tf.app.flags.DEFINE_float('learning_rate', 1.0,  '')
 
 tf.app.flags.DEFINE_string('obj_mat',   'data/vrd/objectListN.mat',  '')
 tf.app.flags.DEFINE_string('rel_mat',   'data/vrd/predicate.mat',    '')
@@ -97,15 +98,15 @@ if __name__ == '__main__':
             ground_truth['rel_feats']: rf
         }
 
-    # gpu_fraction = tf.GPUOptions(per_process_gpu_memory_fraction=FLAGS.gpu_mem_fraction)
-    # session_init = lambda: tf.Session(config=tf.ConfigProto(gpu_options=(gpu_fraction)))
+    gpu_fraction = tf.GPUOptions(per_process_gpu_memory_fraction=FLAGS.gpu_mem_fraction)
+    session_init = lambda: tf.Session(config=tf.ConfigProto(gpu_options=(gpu_fraction)))
 
     # Train model
     # -----------
 
     print '##### Begin Training!'
-    # with session_init() as sess:
-    with tf.Session() as sess:
+    with session_init() as sess:
+    #with tf.Session() as sess:
         merged = tf.merge_all_summaries()
         train_writer = tf.train.SummaryWriter(FLAGS.summaries_dir + '/train', sess.graph)
         test_writer = tf.train.SummaryWriter(FLAGS.summaries_dir + '/test')
@@ -114,8 +115,8 @@ if __name__ == '__main__':
         for e in range(FLAGS.epochs):
             print 'Beginning epoch {}'.format(e)
 
-            for db, data_batch in enumerate(train_data):
-                print '~~~~~~~~~~~~ DATA BATCH {}  | {}'.format(db, data_batch[0].shape)
+            for db, data_batch in tqdm(enumerate(train_data)):
+                #print '~~~~~~~~~~~~ DATA BATCH {}  | {}'.format(db, data_batch[0].shape)
 
                 # Testing
                 # -------
