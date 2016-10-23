@@ -4,7 +4,8 @@ import numpy as np
 from numpy.random import randint
 from scipy.spatial.distance import cosine
 from tqdm import tqdm, trange
-from utils import objs2reluid_vrd, objs2reluid_vg
+from utils import objs2reluid_vrd#, objs2reluid_vg
+objs2reluid_vg = 'TODO: change this name to refer to renamed function . . .'
 
 class Model:
     """
@@ -44,7 +45,7 @@ class Model:
 
     """
     def __init__(self, obj_probs, rel_feats, w2v, word2idx,
-                 data_set='vg', noise=0.05, learning_rate=1.0, max_iters=20,
+                 data_set='vrd', noise=0.05, learning_rate=1.0, max_iters=20,
                  num_samples=500000, lamb1=0.05, lamb2=0.001):
         self.obj_probs     = obj_probs
         self.rel_feats     = rel_feats
@@ -291,7 +292,7 @@ class Model:
         cost_prev = 0.0
 
         flatten = lambda ls: [i for subl in ls for i in subl]
-        # Df = flatten(Ds)
+        Df = flatten(Ds)
 
         for epoch in range(self.max_iters):
             # Use to get change in cost (mc = mean cost)
@@ -354,8 +355,8 @@ class Model:
 
                         # Equation 6
                         if cost > 0:
-                            id_rel  = objs_to_reluid(O1, O2)
-                            id_rel_ = objs_to_reluid(O1_, O2_)
+                            id_rel  = self.objs2reluid(O1, O2)
+                            id_rel_ = self.objs2reluid(O1_, O2_)
                             lr = self.learning_rate
 
                             Z[k]  -= lr * obj_probs[O1][i]   * obj_probs[O2][j]   * rel_feats[id_rel]
