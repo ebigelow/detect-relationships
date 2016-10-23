@@ -4,7 +4,27 @@ import numpy as np
 from numpy.random import randint
 from scipy.spatial.distance import cosine
 from tqdm import tqdm, trange
-from utils import objs2reluid_vrd, objs2reluid_vg
+
+def objs2reluid_vg(O1, O2):
+    return frozenset([O1, O2])
+
+def objs2reluid_vrd(O1, O2):
+    fname, o1, coords1 = O1
+    fname, o2, coords2 = O2
+
+    x1, y1, w1, h1 = coords1
+    x2, y2, w2, h2 = coords2
+    ymin, ymax, xmin, xmax = (min(y1, y2), max(y1+h1, y2+h2),
+                              min(x1, x2), max(x1+w1, x2+w2))
+    h, w = (ymax-ymin, xmax-xmin)
+    y, x = (ymin    , xmin)
+    coords = (x, y, w, h)
+
+    return (fname, frozenset([o1,o2]), coords)
+
+
+
+
 
 class Model:
     """
@@ -297,6 +317,7 @@ class Model:
             # Use to get change in cost (mc = mean cost)
             mc = 0.0
 
+            # Iterate over data batches (to reduce memory use)
             for D in tqdm(Ds):
 
                 # Iterate over data points (stochastically)
@@ -399,6 +420,9 @@ class Model:
             for q in [1, 5, 10, 20]:
                 recall = self.compute_accuracy2(flatten(Ds[-50:]), topn=q)
                 print '\ttop {} accuracy: {}'.format(q, recall)
+
+
+
 
 
 
