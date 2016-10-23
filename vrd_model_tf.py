@@ -16,7 +16,7 @@ tf.app.flags.DEFINE_integer('save_freq',  2000, '')
 tf.app.flags.DEFINE_float('lamb1', 0.05,  '')
 tf.app.flags.DEFINE_float('lamb2', 0.001,  '')
 tf.app.flags.DEFINE_float('init_noise', 1e-5,  '')
-tf.app.flags.DEFINE_float('learning_rate', 1.0,  '')
+tf.app.flags.DEFINE_float('learning_rate', 0.1,  '')
 
 tf.app.flags.DEFINE_string('obj_mat',   'data/vrd/objectListN.mat',  '')
 tf.app.flags.DEFINE_string('rel_mat',   'data/vrd/predicate.mat',    '')
