@@ -128,16 +128,17 @@ class Model:
 
     def rand_var(self, var_name, shape, mean=0.01, stddev=0.1):
         var = tf.Variable(tf.truncated_normal(shape, mean, stddev), name=var_name)
-        with tf.variable_scope(var_name):
-            variable_summaries(var, var_name)
+        variable_summaries(var, var_name)
         return var
 
     def init_weights(self, noise):
         cnn_dim, w2v_dim, k = self.cnn_dim, self.w2v_dim, self.k
-        self.W = self.rand_var('W', (k, w2v_dim),  stddev=noise)
-        self.b = self.rand_var('b', (k, 1),        stddev=noise)
-        self.Z = self.rand_var('Z', (k, cnn_dim),  stddev=noise)
-        self.s = self.rand_var('s', (k, 1),        stddev=noise)
+        with tf.variable_scope('lang-module'):
+            self.W = self.rand_var('W', (k, w2v_dim),  stddev=noise)
+            self.b = self.rand_var('b', (k, 1),        stddev=noise)
+        with tf.variable_scope('vis-module'):
+            self.Z = self.rand_var('Z', (k, cnn_dim),  stddev=noise)
+            self.s = self.rand_var('s', (k, 1),        stddev=noise)
 
     def f(self, I, J, K):
         wvec = tf.concat(1, [tf.gather(self.w2v['obj'], I),
@@ -256,7 +257,7 @@ class Model:
         gt = tf.tile(K[..., None], [1, top_k])
         hits = tf.reduce_sum(tf.to_float(tf.equal(gt, predictions)), 1)
 
-        with tf.variable_scope('accuracy_top{}'.format(top_k)):
+        with tf.variable_scope('accuracies'):
             accuracy = tf.reduce_mean(hits)
             tf.scalar_summary('accuracy_top{}'.format(top_k), accuracy)
         return accuracy
