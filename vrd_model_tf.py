@@ -81,9 +81,14 @@ if __name__ == '__main__':
     best_acc = 0.0
 
     cost = model.loss(ground_truth)
-    with tf.variable_scope('train_op'):
-        train_op = tf.train.GradientDescentOptimizer(FLAGS.learning_rate).minimize(cost)
-    #train_op = tf.train.AdamOptimizer(learning_rate).minimize(cost)
+    # with tf.variable_scope('train_op'):
+    #     train_op = tf.train.GradientDescentOptimizer(FLAGS.learning_rate).minimize(cost)
+
+    optimizer    = tf.train.GradientDescentOptimizer(FLAGS.learning_rate)
+    train_vars_1 = tf.get_collection(tf.GraphKeys.TRAINABLE_VARIABLES, 'lang-module')
+    train_vars_2 = tf.get_collection(tf.GraphKeys.TRAINABLE_VARIABLES, 'vis-module')
+    train_op_1   = optimizer.minimize(cost, var_list=train_vars_1)
+    train_op_2   = optimizer.minimize(cost, var_list=train_vars_2)
 
     # Convert data to feed dict format
     def batch_to_feed(I, J, K, op, rf):
@@ -105,8 +110,8 @@ if __name__ == '__main__':
     # -----------
 
     print '##### Begin Training!'
-    with session_init() as sess:
-    #with tf.Session() as sess:
+    # with session_init() as sess:
+    with tf.Session() as sess:
         merged = tf.merge_all_summaries()
         train_writer = tf.train.SummaryWriter(FLAGS.summaries_dir + '/train', sess.graph)
         test_writer = tf.train.SummaryWriter(FLAGS.summaries_dir + '/test')
@@ -114,9 +119,10 @@ if __name__ == '__main__':
 
         for e in range(FLAGS.epochs):
             print 'Beginning epoch {}'.format(e)
+            train_op = train_op_1 if (e % 2 == 0) else train_op_2
 
             for db, data_batch in tqdm(enumerate(train_data)):
-                #print '~~~~~~~~~~~~ DATA BATCH {}  | {}'.format(db, data_batch[0].shape)
+                print '~~~~~~~~~~~~ DATA BATCH {}  | {}'.format(db, data_batch[0].shape)
 
                 # Testing
                 # -------
@@ -129,6 +135,7 @@ if __name__ == '__main__':
                         accs.append(accs_)
                         # accs.append(sess.run(accuracy, feed_dict=feed_test))
 
+                    # # TODO -- save accuracy summaries
                     # test_writer.add_summary(sums_[2], db+(e*FLAGS.epochs))
 
                     final_accs = [np.mean(a) for a in zip(*accs)]
@@ -146,7 +153,6 @@ if __name__ == '__main__':
                     run_metadata = tf.RunMetadata()
                     summary, _ = sess.run([merged, train_op], feed_dict=feed_train,
                                           options=run_options, run_metadata=run_metadata)
-                    # TODO look up docs ...
                     train_writer.add_run_metadata(run_metadata, 'epoch {}, batch {}'.format(e, db))
                     print('Adding run metadata for', db)
                     # print '==> DATA BATCH {}, COST {}'.format(db, sess.run(cost, feed_dict=feed_train))
