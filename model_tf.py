@@ -208,8 +208,7 @@ class Model:
         val_max = tf.reduce_max(Vs2 * Fs2, 0)   # shape: (b, b,) -> (b,)
         val_gt  = Vs * Fs                       # shape: (b, 1)
 
-        # Will the `1.0 - ...` here work??? -> TODO: test in isolation! (TODO interactive session)
-        rank_loss = tf.maximum(tf.ones_like(val_gt) - val_gt + val_max, tf.zeros_like(val_gt))
+        rank_loss = tf.maximum(1 - val_gt + val_max, 0)
         with tf.variable_scope('C'):
             C = tf.reduce_sum(rank_loss)   # collapse across batches
         return C
