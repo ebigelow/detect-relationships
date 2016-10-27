@@ -196,21 +196,18 @@ class Model:
         Fs = self.f(I, J, K)
 
         b = int(Vs.get_shape()[0])
-        Vs2 = tf.tile(Vs[None, ...], [b, 1])    # shape: (b, b,)
-        Fs2 = tf.tile(Fs[None, ...], [b, 1])    # shape: (b, b,)
+        val_gt  = Vs * Fs                               # shape: (b, 1)
+        tile_gt = tf.tile(val_gt[None, ...], [b, 1])    # shape: (b, b,)
 
         # Zero out diagonal entries for the max R', O1', O2'
-        eye  = tf.reshape(np.eye(b), Vs2.get_shape())
-        diag = tf.ones_like(Vs2) - tf.to_float(eye)
-        Vs2 *= diag
-        Fs2 *= diag
+        eye  = tf.reshape(np.eye(b), tile_gt.get_shape())
+        diag = tf.ones_like(tile_gt) - tf.to_float(eye)
 
-        val_max = tf.reduce_max(Vs2 * Fs2, 0)   # shape: (b, b,) -> (b,)
-        val_gt  = Vs * Fs                       # shape: (b, 1)
+        val_max = tf.reduce_max(tile_gt * diag, 0)      # shape: (b, b,) -> (b,)
 
         rank_loss = tf.maximum(1 - val_gt + val_max, 0)
         with tf.variable_scope('C'):
-            C = tf.reduce_sum(rank_loss)   # collapse across batches
+            C = tf.reduce_sum(rank_loss)                # collapse across batches
         return C
 
     # Equation (7)
