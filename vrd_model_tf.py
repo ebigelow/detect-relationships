@@ -1,4 +1,5 @@
 import tensorflow as tf
+from tensorflow.python.client import timeline
 import numpy as np
 from utils import loadmat, mat_to_tf
 from model_tf import Model
@@ -103,6 +104,7 @@ if __name__ == '__main__':
             ground_truth['rel_feats']: rf
         }
 
+
     gpu_fraction = tf.GPUOptions(per_process_gpu_memory_fraction=FLAGS.gpu_mem_fraction)
     session_init = lambda: tf.Session(config=tf.ConfigProto(gpu_options=(gpu_fraction)))
 
@@ -115,6 +117,7 @@ if __name__ == '__main__':
         merged = tf.merge_all_summaries()
         train_writer = tf.train.SummaryWriter(FLAGS.summaries_dir + '/train', sess.graph)
         test_writer = tf.train.SummaryWriter(FLAGS.summaries_dir + '/test')
+
         tf.initialize_all_variables().run()
 
         for e in range(FLAGS.epochs):
@@ -154,6 +157,13 @@ if __name__ == '__main__':
                     summary, _ = sess.run([merged, train_op], feed_dict=feed_train,
                                           options=run_options, run_metadata=run_metadata)
                     train_writer.add_run_metadata(run_metadata, 'epoch {}, batch {}'.format(e, db))
+
+                    # Create the Timeline object, and write it to a json
+                    if db == 0 and e == 0:
+                        tl = timeline.Timeline(run_metadata.step_stats)
+                        ctf = tl.generate_chrome_trace_format()
+                        with open('data/vrd/summaries/timeline.json', 'w') as f:
+                            f.write(ctf)
                     print('Adding run metadata for', db)
                     # print '==> DATA BATCH {}, COST {}'.format(db, sess.run(cost, feed_dict=feed_train))
                 else:
