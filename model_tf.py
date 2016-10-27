@@ -176,17 +176,10 @@ class Model:
         """
         I,J,K,_,_ = D
         I2,J2,K2  = R_full
+        F1 = self.f(I, J, K)
+        F2 = self.f(I2, J2, K2)
 
-        # F1 :  (30000 x 1) -> (30000*10 x 1)    NUMPY
-        # F2 :     (10 x 1) -> (30000*10 x 1)    TF
-        batch_size = int(I.get_shape()[0])
-        N = int(I2.get_shape()[0])
-
-        # import ipdb; ipdb.set_trace()
-        F1 = tf.tile(self.f(I, J, K), [N])
-        F2 = repeat(self.f(I2, J2, K2), batch_size)
-
-        rank = F2 - F1 + tf.ones_like(F1)
+        rank = F2[None, ...] - F1[..., None] + 1
         relu = tf.nn.relu(rank)
         with tf.variable_scope('L'):
             L = tf.reduce_sum(relu)
