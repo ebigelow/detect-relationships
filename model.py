@@ -4,7 +4,6 @@ import numpy as np
 from numpy.random import randint
 from scipy.spatial.distance import cosine
 from tqdm import tqdm, trange
-<<<<<<< HEAD
 
 def objs2reluid_vg(O1, O2):
     return frozenset([O1, O2])
@@ -26,10 +25,8 @@ def objs2reluid_vrd(O1, O2):
 
 
 
-=======
 from utils import objs2reluid_vrd#, objs2reluid_vg
 objs2reluid_vg = 'TODO: change this name to refer to renamed function . . .'
->>>>>>> e47b38217646fdff6adb8ce7679edb7f5e32292e
 
 class Model:
     """
