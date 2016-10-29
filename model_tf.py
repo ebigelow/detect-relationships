@@ -152,8 +152,12 @@ class Model:
         Z_k = tf.gather(self.Z, K)
         s_k = tf.gather(self.s, K)
 
-        P_i = tf.diag_part(tf.gather(tf.transpose(obj_probs[0]), I))   # TODO will this work ???
-        P_j = tf.diag_part(tf.gather(tf.transpose(obj_probs[1]), J))
+        batch_size = int(I.get_shape()[0])
+        q = self.n * np.arange(batch_size)
+
+        # import ipdb; ipdb.set_trace()
+        P_i = tf.gather(tf.reshape(obj_probs[0], [-1]), q * I)
+        P_j = tf.gather(tf.reshape(obj_probs[1], [-1]), q * J)
         P_k = tf.reduce_sum(Z_k * cnn, 1) + s_k[:,0]        # (num_rels, 4096) x (4096, batch_size)
         return P_i * P_j * P_k                              # (1, batch_size)
 
@@ -200,12 +204,10 @@ class Model:
         tile_gt = tf.tile(val_gt[None, ...], [b, 1])    # shape: (b, b,)
 
         # Zero out diagonal entries for the max R', O1', O2'
-        eye  = tf.reshape(np.eye(b), tile_gt.get_shape())
-        diag = tf.ones_like(tile_gt) - tf.to_float(eye)
-
+        diag = 1 - np.eye(b)
         val_max = tf.reduce_max(tile_gt * diag, 0)      # shape: (b, b,) -> (b,)
 
-        rank_loss = tf.maximum(1 - val_gt + val_max, 0)
+        rank_loss = tf.nn.relu(1 - val_gt + val_max)
         with tf.variable_scope('C'):
             C = tf.reduce_sum(rank_loss)                # collapse across batches
         return C
