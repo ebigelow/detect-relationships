@@ -50,14 +50,12 @@ if __name__ == '__main__':
     obj_probs = np.load(FLAGS.obj_npy).item()
     rel_feats = np.load(FLAGS.rel_npy).item()
     train_mat  = loadmat(FLAGS.train_mat)['annotation_train']
-    train_data = mat_to_tf(train_mat, word2idx, obj_probs, rel_feats,
-                           n_=100, k_=70, batch_size=FLAGS.batch_size)
+    train_data = mat_to_tf(train_mat, word2idx, obj_probs, rel_feats, batch_size=FLAGS.batch_size)
 
     obj_probs_test = np.load(FLAGS.obj_npy_test).item()
     rel_feats_test = np.load(FLAGS.rel_npy_test).item()
     test_mat  = loadmat(FLAGS.test_mat)['annotation_test']
-    test_data = mat_to_tf(test_mat, word2idx, obj_probs_test, rel_feats_test,
-                          n_=100, k_=70, batch_size=FLAGS.batch_size)
+    test_data = mat_to_tf(test_mat, word2idx, obj_probs_test, rel_feats_test, batch_size=FLAGS.batch_size)
 
     # TODO everthing below here could be in a separate function  (VRD vs. VG run files)
     # maybe... model_train(w2v, R_full, train_data, test_data, epochs,

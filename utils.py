@@ -628,7 +628,7 @@ def mat_to_tf(mat, word2idx, obj_probs, rel_feats, batch_size=34):
     TODO
     ----
     x return list of <O1,O2> id indices, [1 1 1 1 1 2 2 3 3 3 3 ...], and true batch length for each batch (?)
-    - integrate this in other places . . . 
+    - integrate this in other places . . .
     """
     D_imgs = defaultdict(lambda: list())
     for datum in mat:
@@ -668,7 +668,7 @@ def mat_to_tf(mat, word2idx, obj_probs, rel_feats, batch_size=34):
         n_rels = I.shape[0]
         s_ = np.concatenate([s_, np.zeros((n_rels, 1))], axis=1)
         o_ = np.concatenate([o_, np.zeros((n_rels, 1))], axis=1)
-        D_imgs[fname] = (I, J, K, s_, o_, r_)
+        D_imgs[fname] = (I, J, K, s_, o_, r_, rel_ids)
 
         # TODO this will break if batch_size < n_rels
         pad_len = batch_size - n_rels
