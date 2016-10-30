@@ -623,9 +623,12 @@ def batch_mats(imdata, img_dir, mean, batch_len=10, crop_size=224):
 #                    label_dict, batch_size, data_epochs,
 #                    which_net, img_dir, img_mean):
 
-def mat_to_tf(mat, word2idx, obj_probs, rel_feats,
-              n_=100, k_=70, batch_size=34):
+def mat_to_tf(mat, word2idx, obj_probs, rel_feats, batch_size=34):
     """
+    TODO
+    ----
+    x return list of <O1,O2> id indices, [1 1 1 1 1 2 2 3 3 3 3 ...], and true batch length for each batch (?)
+    - integrate this in other places . . . 
     """
     D_imgs = defaultdict(lambda: list())
     for datum in mat:
@@ -651,10 +654,14 @@ def mat_to_tf(mat, word2idx, obj_probs, rel_feats,
             obj_prob = obj_probs[obj_id]
             rel_feat = rel_feats[rel_id]
 
-            D_imgs[datum.filename].append([i, j, k, sub_prob, obj_prob, rel_feat])
+            D_imgs[datum.filename].append([i, j, k, sub_prob, obj_prob, rel_feat, rel_id])
 
     for fname in D_imgs:
-        I, J, K, s_, o_, r_ = [np.vstack(x) for x in zip(*D_imgs[fname])]
+        I, J, K, s_, o_, r_ = [np.vstack(x) for x in zip(*D_imgs[fname])[:-1]]
+
+        rel_ids_ = zip(*D_imgs[fname])[-1]
+        id_idxs  = {rid: i for i, rid in enumerate(set(rel_ids_))}
+        rel_ids  = np.vstack([id_idxs[rid] for rid in rel_ids_])
 
         # For padding, we add an extra dimension to obj_probs with zeros
         #  (this will also ensure we never predict this class at test time)
@@ -668,12 +675,13 @@ def mat_to_tf(mat, word2idx, obj_probs, rel_feats,
         if pad_len > 0:
             pad_q = lambda a,q: np.concatenate([a, q * np.ones((pad_len, a.shape[1]))], axis=0)
             pad_z = lambda a:   np.concatenate([a,    np.zeros((pad_len, a.shape[1]))], axis=0)
-            D_imgs[fname] = [pad_q(I, n_), pad_q(J, n_), pad_q(K, k_),
-                             pad_z(s_),    pad_z(o_),   pad_z(r_)]
+            D_imgs[fname] = [pad_q(I, -1), pad_q(J, -1), pad_q(K, -1),
+                             pad_z(s_),    pad_z(o_),    pad_z(r_),
+                             pad_q(rel_ids, -1)]
 
-    I, J, K, subs_, objs_, rels_ = zip(*D_imgs.values())
+    I, J, K, subs_, objs_, rels_, im_relids = zip(*D_imgs.values())
     objs_final = [np.concatenate([s_[None, ...], o_[None, ...]], axis=0) for s_,o_ in zip(subs_, objs_)]
-    return I, J, K, objs_final, rels_
+    return I, J, K, objs_final, rels_, im_relids
 
 
 def mat_to_imdata(mat):

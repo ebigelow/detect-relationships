@@ -92,7 +92,7 @@ if __name__ == '__main__':
     train_op_2   = optimizer.minimize(cost, var_list=train_vars_2)
 
     # Convert data to feed dict format
-    def batch_to_feed(I, J, K, op, rf):
+    def batch_to_feed(I, J, K, op, rf, rids):
         return {  \
             ground_truth['I']: np.squeeze(I),
             ground_truth['J']: np.squeeze(J),
@@ -101,7 +101,8 @@ if __name__ == '__main__':
             ground_truth['J_full']: np.squeeze(J2),
             ground_truth['K_full']: np.squeeze(K2),
             ground_truth['obj_probs']: op,
-            ground_truth['rel_feats']: rf
+            ground_truth['rel_feats']: rf,
+            ground_truth['rel_ids']: rids,
         }
 
 

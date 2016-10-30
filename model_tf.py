@@ -178,9 +178,11 @@ class Model:
         Likelihood of relationships
 
         """
-        I,J,K,_,_ = D
-        I2,J2,K2  = R_full
-        F1 = self.f(I, J, K)
+        I,J,K,_,_,_ = D
+        I2, J2, K2  = R_full
+
+        no_pad = tf.to_int(tf.not_equal(I, -1))
+        F1 = self.f(I, J, K) * no_pad
         F2 = self.f(I2, J2, K2)
 
         rank = F2[None, ...] - F1[..., None] + 1
@@ -195,17 +197,19 @@ class Model:
         Rank loss function
 
         """
-        I, J, K, obj_probs, rel_feats = D
+        I, J, K, obj_probs, rel_feats, rel_ids = D
+
+        no_pad = tf.to_int(tf.not_equal(I, -1))         # zero out padding data
         Vs = self.V(I, J, K, obj_probs, rel_feats)
-        Fs = self.f(I, J, K)
+        Fs = self.f(I, J, K) * no_pad
 
         b = int(Vs.get_shape()[0])
         val_gt  = Vs * Fs                               # shape: (b, 1)
-        tile_gt = tf.tile(val_gt[None, ...], [b, 1])    # shape: (b, b,)
+        tile_gt = tf.tile(val_gt[None, ...], [b, 1])    # shape: (b, b)
 
-        # Zero out diagonal entries for the max R', O1', O2'
-        diag = 1 - np.eye(b)
-        val_max = tf.reduce_max(tile_gt * diag, 0)      # shape: (b, b,) -> (b,)
+        # # Zero out entries s.t.  (R == R') or (<O1,O2> == <O1',O2'>)
+        eqs = tf.to_int(tf.not_equal(rel_ids[None,...], rel_ids[...,None]))
+        val_max = tf.reduce_max(tile_gt * eqs, 0)       # shape: (b, b) -> (b,)
 
         rank_loss = tf.nn.relu(1 - val_gt + val_max)
         with tf.variable_scope('C'):
@@ -220,7 +224,7 @@ class Model:
         D: list of (Rs, obj_probs, rel_feats) for each image
 
         """
-        D = [ground_truth[key] for key in ('I','J','K','obj_probs','rel_feats')]
+        D = [ground_truth[key] for key in ('I','J','K','obj_probs','rel_feats','rel_ids')]
         R_full = (ground_truth['I_full'], ground_truth['J_full'], ground_truth['K_full'])
 
         C = self.C(D)
@@ -302,5 +306,6 @@ class Model:
                             'J_full':    tf.placeholder(tf.int32, shape=(n_rels)),
                             'K_full':    tf.placeholder(tf.int32, shape=(n_rels)),
                             'obj_probs': tf.placeholder(tf.float32, shape=(2, batch_size, n)),
-                            'rel_feats': tf.placeholder(tf.float32, shape=(batch_size, cnn_dim))}
+                            'rel_feats': tf.placeholder(tf.float32, shape=(batch_size, cnn_dim)),
+                            'rel_ids':   tf.placeholder(tf.int32, shape=(batch_size))}
         return ground_truth
