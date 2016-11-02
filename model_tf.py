@@ -181,7 +181,7 @@ class Model:
         I,J,K,_,_,_ = D
         I2, J2, K2  = R_full
 
-        no_pad = tf.to_int(tf.not_equal(I, -1))
+        no_pad = tf.to_float(tf.not_equal(I, -1))
         F1 = self.f(I, J, K) * no_pad
         F2 = self.f(I2, J2, K2)
 
@@ -199,7 +199,7 @@ class Model:
         """
         I, J, K, obj_probs, rel_feats, rel_ids = D
 
-        no_pad = tf.to_int(tf.not_equal(I, -1))         # zero out padding data
+        no_pad = tf.to_float(tf.not_equal(I, -1))         # zero out padding data
         Vs = self.V(I, J, K, obj_probs, rel_feats)
         Fs = self.f(I, J, K) * no_pad
 
@@ -208,7 +208,7 @@ class Model:
         tile_gt = tf.tile(val_gt[None, ...], [b, 1])    # shape: (b, b)
 
         # # Zero out entries s.t.  (R == R') or (<O1,O2> == <O1',O2'>)
-        eqs = tf.to_int(tf.not_equal(rel_ids[None,...], rel_ids[...,None]))
+        eqs = tf.to_float(tf.not_equal(rel_ids[None,...], rel_ids[...,None]))
         val_max = tf.reduce_max(tile_gt * eqs, 0)       # shape: (b, b) -> (b,)
 
         rank_loss = tf.nn.relu(1 - val_gt + val_max)
