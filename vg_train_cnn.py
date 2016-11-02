@@ -6,9 +6,10 @@ from tqdm import tqdm
 
 tf.app.flags.DEFINE_float('gpu_mem_fraction', 0.9, '')
 
-tf.app.flags.DEFINE_string('which_net', 'objnet', '')
-tf.app.flags.DEFINE_string('init_path', 'data/models/vgg16.npy', 'Initial weights')
-tf.app.flags.DEFINE_string('save_path', 'data/models/objnet/vgg16_vg_trained.npy', 'Save weights to this file')
+tf.app.flags.DEFINE_string('which_net',   'objnet', 'either (objnet | relnet)')
+tf.app.flags.DEFINE_string('init_path',   'data/models/vgg16.npy', 'Initial weights')
+tf.app.flags.DEFINE_string('save_path',   'data/models/objnet/vgg16_vg_trained.npy', 'Save weights to this file')
+tf.app.flags.DEFINE_string('upload_path', 'detect-relationships/models/objnet/vgg16_vg_trained_{}.npy', 'Save weights to this file')
 
 tf.app.flags.DEFINE_float('learning_rate', 0.01,   '')
 tf.app.flags.DEFINE_integer('batch_size',  10,    '')
@@ -60,7 +61,6 @@ if __name__ == '__main__':
     gpu_fraction = tf.GPUOptions(per_process_gpu_memory_fraction=FLAGS.gpu_mem_fraction)
     session_init = lambda: tf.Session(config=tf.ConfigProto(gpu_options=(gpu_fraction)))
 
-    #import ipdb; ipdb.set_trace()
     with session_init() as sess:
         tf.initialize_all_variables().run()
 
@@ -86,4 +86,4 @@ if __name__ == '__main__':
             print ' => epoch {} acurracy: {}'.format(db, acc)
             if acc > best_acc:
                 best_acc = acc
-                net.save_npy(sess, file_path=FLAGS.save_path)
+                net.save_npy(sess, save_path=FLAGS.save_path, upload_path=FLAGS.upload_path)

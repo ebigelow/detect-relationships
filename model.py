@@ -4,7 +4,29 @@ import numpy as np
 from numpy.random import randint
 from scipy.spatial.distance import cosine
 from tqdm import tqdm, trange
-from utils import objs2reluid_vrd, objs2reluid_vg
+
+def objs2reluid_vg(O1, O2):
+    return frozenset([O1, O2])
+
+def objs2reluid_vrd(O1, O2):
+    fname, o1, coords1 = O1
+    fname, o2, coords2 = O2
+
+    x1, y1, w1, h1 = coords1
+    x2, y2, w2, h2 = coords2
+    ymin, ymax, xmin, xmax = (min(y1, y2), max(y1+h1, y2+h2),
+                              min(x1, x2), max(x1+w1, x2+w2))
+    h, w = (ymax-ymin, xmax-xmin)
+    y, x = (ymin    , xmin)
+    coords = (x, y, w, h)
+
+    return (fname, frozenset([o1,o2]), coords)
+
+
+
+
+from utils import objs2reluid_vrd#, objs2reluid_vg
+objs2reluid_vg = 'TODO: change this name to refer to renamed function . . .'
 
 class Model:
     """
@@ -44,7 +66,7 @@ class Model:
 
     """
     def __init__(self, obj_probs, rel_feats, w2v, word2idx,
-                 data_set='vg', noise=0.05, learning_rate=1.0, max_iters=20,
+                 data_set='vrd', noise=0.05, learning_rate=1.0, max_iters=20,
                  num_samples=500000, lamb1=0.05, lamb2=0.001):
         self.obj_probs     = obj_probs
         self.rel_feats     = rel_feats
@@ -291,12 +313,13 @@ class Model:
         cost_prev = 0.0
 
         flatten = lambda ls: [i for subl in ls for i in subl]
-        # Df = flatten(Ds)
+        Df = flatten(Ds)
 
         for epoch in range(self.max_iters):
             # Use to get change in cost (mc = mean cost)
             mc = 0.0
 
+            # Iterate over data batches (to reduce memory use)
             for D in tqdm(Ds):
 
                 # Iterate over data points (stochastically)
@@ -354,8 +377,8 @@ class Model:
 
                         # Equation 6
                         if cost > 0:
-                            id_rel  = objs_to_reluid(O1, O2)
-                            id_rel_ = objs_to_reluid(O1_, O2_)
+                            id_rel  = self.objs2reluid(O1, O2)
+                            id_rel_ = self.objs2reluid(O1_, O2_)
                             lr = self.learning_rate
 
                             Z[k]  -= lr * obj_probs[O1][i]   * obj_probs[O2][j]   * rel_feats[id_rel]
@@ -399,6 +422,9 @@ class Model:
             for q in [1, 5, 10, 20]:
                 recall = self.compute_accuracy2(flatten(Ds[-50:]), topn=q)
                 print '\ttop {} accuracy: {}'.format(q, recall)
+
+
+
 
 
 

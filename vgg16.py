@@ -3,7 +3,7 @@ import os
 import time
 import numpy as np
 import tensorflow as tf
-
+import subprocess
 
 # From: https://github.com/machrisaa/tensorflow-vgg/issues/7
 class CustomVgg16:
@@ -95,7 +95,7 @@ class CustomVgg16:
             return relu
 
     def fc_layer(self, bottom, name, train=False, w_init_shape=None, b_init_shape=None):
-        with tf.variable_scope(name):
+        with tf.variable_scope(name):with tf.variable_scope(name):
             shape = bottom.get_shape().as_list()
             dim = 1
             for d in shape[1:]:
@@ -156,9 +156,8 @@ class CustomVgg16:
         var_list = [(var, name, D[name].index(var)) for name in D for var in D[name]]
         return zip(*var_list)
 
-    def save_npy(self, sess, file_path='./vgg.npy'):
+    def save_npy(self, sess, save_path='vgg.npy', upload_path=None):
         assert isinstance(sess, tf.Session)
-
         data_dict = {}
 
         vars_, names, idxs = self.get_all_var()
@@ -169,8 +168,12 @@ class CustomVgg16:
                 data_dict[names[i]] = [None] * 2
             data_dict[names[i]][idxs[i]] = var_out[i]
 
-        np.save(file_path, data_dict)
-        print 'file saved: {}'.format(file_path)
+        np.save(save_path, data_dict)
+        if upload_path:
+            subprocess.call(['skicka','-no-browser-auth','upload',upload_path])
+            print 'saved to: {}\nuploaded to: {}'.format(save_path, upload_path)
+        else:
+            print 'saved to: {}\nnot uploaded.'.format(save_path)
 
     def get_train_op(self, learning_rate=0.005):
         with tf.variable_scope('ground_truth'):
