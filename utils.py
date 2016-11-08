@@ -342,43 +342,58 @@ def _todict(matobj):
 def sg_indexes(scene_graphs, label_dict):
     for sg in scene_graphs:
         for r in sg.relationships:
+
+            rind = None
             for y in reversed(r.synset):
                 if y in label_dict['rel']:
-                    r.index = label_dict['rel'][y]
+                    rind = label_dict['rel'][y]
+
+            if rind is None:
+                print 'oh no!', r.id, r.synset
+            else:
+                r.index = rind
         for o in sg.objects:
+            oind = None
             for y in reversed(o.synsets):
                 if y in label_dict['obj']:
-                    o.index = label_dict['obj'][y]
+                    oind = label_dict['obj'][y]
+            if oind is None:
+                print 'oh no!', o.id, o.synsets
+                sg.objects.remove(o)
+            else:
+                o.index = oind
     return scene_graphs
 
+import sys
+sys.path.append('/localdisk/ebigelow/lib/visual_genome_python_driver/')
+import src.local as vg
 def load_sg_batcher(data_dir, data_id_dir, label_dict, start_idx=0, end_idx=-1,
                     batch_size=10, data_epochs=20, which_net='objnet',
                     img_dir='data/vg/images/', img_mean=None):
-    import sys
-    sys.path.append('/Users/eric/code/visual_genome_python_driver/')
-    import src.local as vg
 
-    n, k = (len(label_dict['obj']), len(label_dict['rel']))
+    #n, k = (len(label_dict['obj']), len(label_dict['rel']))
     N = end_idx - start_idx
     batch_len = np.ceil(float(N) / data_epochs).astype(int)
 
     for e in range(data_epochs):
-        scene_graphs = vg.GetSceneGraphs(start_idx, end_idx, data_dir, data_id_dir)
+        #if e % (data_epochs / 20) == 0: print 'data batch: {}'.format(e)
+        scene_graphs = vg.GetSceneGraphs(e, e+batch_len, data_dir, data_id_dir)
         scene_graphs = rel_coords(scene_graphs)
-        scene_graphs = sg_indexes(scene_graphs, label_dict)
-        obj_meta, rel_meta = get_sg_data(scene_graphs, img_mean, img_dir, n, k)
+        #scene_graphs = sg_indexes(scene_graphs, label_dict)
+        obj_meta, rel_meta = get_sg_data(scene_graphs, img_mean, img_dir, label_dict)
 
         if which_net == 'objnet':
             yield batchify_data(obj_meta, batch_size)
         else:
             yield batchify_data(rel_meta, batch_size)
 
-def get_sg_data(scene_graphs, img_mean, img_dir, n_objs=600, n_rels=100):
+def get_sg_data(scene_graphs, img_mean, img_dir, label_dict):
+    n, k = (len(label_dict['obj']), len(label_dict['rel']))
     obj_data = []
     rel_data = []
 
     for sg in scene_graphs:
-        img = imread(img_dir + sg.image.url)
+        img = imread(img_dir + sg.image.url.split('/')[-1])
 
         for r in sg.relationships:
             s, o = (r.subject, r.object)
@@ -386,9 +401,12 @@ def get_sg_data(scene_graphs, img_mean, img_dir, n_objs=600, n_rels=100):
             img_o = square_crop(img, 224, o.x, o.y, o.width, o.height) - img_mean
             img_r = square_crop(img, 224, r.x, r.y, r.width, r.height) - img_mean
 
-            sd = np.zeros((n_objs));  sd[s.index] = 1
-            od = np.zeros((n_objs));  od[o.index] = 1
-            rd = np.zeros((n_rels));  rd[r.index] = 1
+            s_index = [label_dict['obj'][sy] for sy in s.synsets if sy in label_dict['obj']][0]
+            o_index = [label_dict['obj'][sy] for sy in o.synsets if sy in label_dict['obj']][0]
+            r_index = [label_dict['rel'][sy] for sy in r.synset if sy in label_dict['rel']][0]
+            sd = np.zeros((n));  sd[s_index] = 1
+            od = np.zeros((n));  od[o_index] = 1
+            rd = np.zeros((k));  rd[r_index] = 1
 
             obj_data.append((img_s, sd))
             obj_data.append((img_o, od))
@@ -623,7 +641,7 @@ def batch_mats(imdata, img_dir, mean, batch_len=10, crop_size=224):
 #                    label_dict, batch_size, data_epochs,
 #                    which_net, img_dir, img_mean):
 
-def mat_to_tf(mat, word2idx, obj_probs, rel_feats, batch_size=34):
+def mat_to_tf(mat, word2idx, obj_probs, rel_feats, batch_size=34, n_=100, k_=70):
     """
     TODO
     ----
@@ -675,7 +693,7 @@ def mat_to_tf(mat, word2idx, obj_probs, rel_feats, batch_size=34):
         if pad_len > 0:
             pad_q = lambda a,q: np.concatenate([a, q * np.ones((pad_len, a.shape[1]))], axis=0)
             pad_z = lambda a:   np.concatenate([a,    np.zeros((pad_len, a.shape[1]))], axis=0)
-            D_imgs[fname] = [pad_q(I, -1), pad_q(J, -1), pad_q(K, -1),
+            D_imgs[fname] = [pad_q(I, n_), pad_q(J, n_), pad_q(K, k_),
                              pad_z(s_),    pad_z(o_),    pad_z(r_),
                              pad_q(rel_ids, -1)[:,0]]
 

@@ -1,9 +1,9 @@
 #!/bin/bash
 
-# export CUDA_VISIBLE_DEVICES=0
-# #export CUDA_VISIBLE_DEVICES=1
-# export LD_LIBRARY_PATH=/usr/local/cuda-7.5/lib64:/localdisk/ebigelow/lib/cudnn-7.0/lib64/
-# source ~/.virtualenvs/tf/bin/activate
+export CUDA_VISIBLE_DEVICES=0
+#export CUDA_VISIBLE_DEVICES=1
+export LD_LIBRARY_PATH=/usr/local/cuda-7.5/lib64:/localdisk/ebigelow/lib/cudnn-7.0/lib64/
+source ~/.virtualenvs/tf/bin/activate
 
 
 GPU_FRACTION=0.9
@@ -18,9 +18,10 @@ UPLOAD_PATH="detect-relationships/models/objnet/vgg16_vg_trained_{}.npy"
 #SAVE_PATH="data/models/relnet/vgg16_trained2.npy"
 #UPLOAD_PATH="detect-relationships/models/relnet/vgg16_vg_trained_{}.npy"
 
-BATCH_SIZE=10
-DATA_EPOCHS=25
-META_EPOCHS=20
+LEARNING_RATE=0.5
+BATCH_SIZE=20
+DATA_EPOCHS=2000
+META_EPOCHS=10
 TRAIN_IDX=90000
 
 IMG_DIR="data/vg/images/"
@@ -44,3 +45,4 @@ python vg_train_cnn.py \
   --label_dict $LABEL_DICT \
   --json_dir $JSON_DIR \
   --json_id_dir $JSON_ID_DIR \
+  --learning_rate $LEARNING_RATE
