@@ -153,11 +153,11 @@ class Model:
         s_k = tf.gather(self.s, K)
 
         batch_size = int(I.get_shape()[0])
-        q = self.n * np.arange(batch_size)
+        q = (self.n-1) * np.arange(batch_size)
 
-        # import ipdb; ipdb.set_trace()
-        P_i = tf.gather(tf.reshape(obj_probs[0], [-1]), q * I)
-        P_j = tf.gather(tf.reshape(obj_probs[1], [-1]), q * J)
+        import ipdb; ipdb.set_trace()
+        P_i = tf.gather(tf.reshape(obj_probs[0], [-1]), q + I)
+        P_j = tf.gather(tf.reshape(obj_probs[1], [-1]), q + J)
         P_k = tf.reduce_sum(Z_k * cnn, 1) + s_k[:,0]        # (num_rels, 4096) x (4096, batch_size)
         return P_i * P_j * P_k                              # (1, batch_size)
 
@@ -181,7 +181,7 @@ class Model:
         I,J,K,_,_,_ = D
         I2, J2, K2  = R_full
 
-        no_pad = tf.to_float(tf.not_equal(I, -1))
+        no_pad = tf.to_float(tf.not_equal(I, self.n-1))
         F1 = self.f(I, J, K) * no_pad
         F2 = self.f(I2, J2, K2)
 
@@ -199,7 +199,7 @@ class Model:
         """
         I, J, K, obj_probs, rel_feats, rel_ids = D
 
-        no_pad = tf.to_float(tf.not_equal(I, -1))         # zero out padding data
+        no_pad = tf.to_float(tf.not_equal(I, self.n-1))         # zero out padding data
         Vs = self.V(I, J, K, obj_probs, rel_feats)
         Fs = self.f(I, J, K) * no_pad
 

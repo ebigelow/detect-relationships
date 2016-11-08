@@ -641,7 +641,7 @@ def batch_mats(imdata, img_dir, mean, batch_len=10, crop_size=224):
 #                    label_dict, batch_size, data_epochs,
 #                    which_net, img_dir, img_mean):
 
-def mat_to_tf(mat, word2idx, obj_probs, rel_feats, batch_size=34):
+def mat_to_tf(mat, word2idx, obj_probs, rel_feats, batch_size=34, n_=100, k_=70):
     """
     TODO
     ----
@@ -693,7 +693,7 @@ def mat_to_tf(mat, word2idx, obj_probs, rel_feats, batch_size=34):
         if pad_len > 0:
             pad_q = lambda a,q: np.concatenate([a, q * np.ones((pad_len, a.shape[1]))], axis=0)
             pad_z = lambda a:   np.concatenate([a,    np.zeros((pad_len, a.shape[1]))], axis=0)
-            D_imgs[fname] = [pad_q(I, -1), pad_q(J, -1), pad_q(K, -1),
+            D_imgs[fname] = [pad_q(I, n_), pad_q(J, n_), pad_q(K, k_),
                              pad_z(s_),    pad_z(o_),    pad_z(r_),
                              pad_q(rel_ids, -1)[:,0]]
 

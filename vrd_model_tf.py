@@ -111,8 +111,8 @@ if __name__ == '__main__':
     # -----------
 
     print '##### Begin Training!'
-    # with session_init() as sess:
-    with tf.Session() as sess:
+    with session_init() as sess:
+    #with tf.Session() as sess:
         merged = tf.merge_all_summaries()
         train_writer = tf.train.SummaryWriter(FLAGS.summaries_dir + '/train', sess.graph)
         test_writer = tf.train.SummaryWriter(FLAGS.summaries_dir + '/test')
@@ -124,7 +124,7 @@ if __name__ == '__main__':
             train_op = train_op_1 if (e % 2 == 0) else train_op_2
 
             for db, data_batch in tqdm(enumerate(train_data)):
-                print '~~~~~~~~~~~~ DATA BATCH {}  | {}'.format(db, data_batch[0].shape)
+                #print '~~~~~~~~~~~~ DATA BATCH {}  | {}'.format(db, data_batch[0].shape)
 
                 # Testing
                 # -------
