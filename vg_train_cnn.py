@@ -3,7 +3,7 @@ from utils import load_sg_batcher
 from vgg16 import CustomVgg16
 import numpy as np
 
-tf.app.flags.DEFINE_float('gpu_mem_fraction', 0.9, '')
+tf.app.flags.DEFINE_float('gpu_mem_fraction', 0.95, '')
 
 tf.app.flags.DEFINE_string('which_net',   'objnet', 'either (objnet | relnet)')
 tf.app.flags.DEFINE_string('init_path',   'data/models/vgg16.npy', 'Initial weights')
@@ -55,6 +55,9 @@ if __name__ == '__main__':
     test_params = train_params.copy()
     test_params['start_idx'] = FLAGS.train_idx
     test_params['end_idx']   = -1
+
+    gpu_fraction = tf.GPUOptions(per_process_gpu_memory_fraction=FLAGS.gpu_mem_fraction)
+    session_init = lambda: tf.Session(config=tf.ConfigProto(gpu_options=(gpu_fraction)))
 
     with session_init() as sess:
         tf.initialize_all_variables().run()

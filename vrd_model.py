@@ -1,10 +1,10 @@
-import numpy as np
+ import numpy as np
 from utils import loadmat, mat_to_triplets, batch_triplets
 from model import Model
 
 import sys
-sys.path.append('/localdisk/ebigelow/lib/visual_genome_python_driver')
-import src.local as vg
+# sys.path.append('/localdisk/ebigelow/lib/visual_genome_python_driver')
+# import src.local as vg
 
 
 # --------------------------------------------------------------------------------------------------
@@ -12,9 +12,9 @@ import src.local as vg
 
 obj_mat   = 'data/vrd/objectListN.mat'
 rel_mat   = 'data/vrd/predicate.mat'
-w2v_file  = 'data/word2vec/w2v.npy'
-obj_file  = 'data/models/objnet/obj_probs.npy'
-rel_file  = 'data/models/relnet/rel_feats.npy'
+w2v_file  = 'data/vrd/w2v.npy'
+obj_file  = 'data/vrd/obj_probs.npy'
+rel_file  = 'data/vrd/rel_feats.npy'
 train_mat = 'data/vrd/annotation_train.mat'
 
 # --------------------------------------------------------------------------------------------------
@@ -24,7 +24,7 @@ obj_dict = {r:i for i,r in enumerate(loadmat(obj_mat)['objectListN'])}
 rel_dict = {r:i for i,r in enumerate(loadmat(rel_mat)['predicate'])}
 
 word2idx = {'obj':obj_dict, 'rel':rel_dict}
-w2v = np.load(w2v_file)
+w2v = np.load(w2v_file).item()
 
 obj_probs = np.load(obj_file).item()
 rel_feats = np.load(rel_file).item()
