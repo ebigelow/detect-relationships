@@ -1,5 +1,4 @@
 
-# from utils import *
 import numpy as np
 from numpy.random import randint
 from scipy.spatial.distance import cosine
@@ -22,17 +21,16 @@ def objs2reluid_vrd(O1, O2):
 
     return (fname, frozenset([o1,o2]), coords)
 
+def flatten (ls): 
+    return [i for subl in ls for i in subl]
 
 
-
-from utils import objs2reluid_vrd#, objs2reluid_vg
-objs2reluid_vg = 'TODO: change this name to refer to renamed function . . .'
 
 class Model:
     """
     Arguments
     ---------
-    w2v : w2v = (100 + 70, 300)  numpy vector, 1 for each object (100), then 1 for each predicate (70)
+    w2v : w2v = {'obj': (100, 300),  'rel': (70, 300)}
     word2idx : map words to obj/pred index; w2i['obj']['llama'] == 42
 
     ----
@@ -183,6 +181,7 @@ class Model:
         P_i = self.obj_probs[O1][i]
         P_j = self.obj_probs[O2][j]
 
+        # V_dict keeps a table of previously computed values by input
         key = rel_uid+(k,)
         if key not in self.V_dict:
             cnn = self.rel_feats[rel_uid]
@@ -228,21 +227,18 @@ class Model:
         return '-'.join([idx2w['obj'][i], idx2w['rel'][k], idx2w['obj'][j]])
 
 
-    def compute_accuracy3(self, D, topn=20):
-        """
-        Compute accuracy, predicting predicates only.
+    def compute_accuracy3(self, test_data, topn=20):
+        # import ipdb; ipdb.set_trace()
+        Ds, obj_probs_, rel_feats_ = test_data
 
-        """
-        predictions = [(self.predict_preds(R, O1, O2, topn), R) for R, O1, O2 in D]
+        obj_probs_train, rel_feats_train = (self.obj_probs, self.rel_feats)
+        self.obj_probs, self.rel_feats = (obj_probs_, rel_feats_)
 
-        ## TODO: new code
-        #if topn == 20:
-        #    for (p, c), truth in predictions:
-        #        print 'GT: ' + self.rel2str(truth)
-        #        for p_, c_ in zip(p,c): print '\tR_:{} | conf: {}'.format(self.rel2str(p_),c_)
+        accuracy = self.compute_accuracy2(flatten(Ds), topn=topn)
 
-        accuracy = np.mean([int(truth in p) for (p,c),(_,_,truth) in predictions])
+        self.obj_probs, self.rel_feats = (obj_probs_train, rel_feats_train)
         return accuracy
+        
 
     def predict_Rs2(self, O1, O2, topn=100):
         """
@@ -302,7 +298,7 @@ class Model:
             #recall = hits / len(hits)
             #return recall
 
-    def SGD(self, Ds, save_file='data/models/vrd_weights.npy', recall_topn=1):
+    def SGD(self, Ds, test_data=None, save_file='data/models/vrd_weights.npy', recall_topn=1):
         """
         Perform SGD over eqs 5 (L) 6 (C)
 
@@ -312,7 +308,6 @@ class Model:
         W, b, Z, s = (self.W, self.b, self.Z, self.s)
         cost_prev = 0.0
 
-        flatten = lambda ls: [i for subl in ls for i in subl]
         Df = flatten(Ds)
 
         for epoch in range(self.max_iters):
@@ -420,7 +415,11 @@ class Model:
             cost_prev = final_obj
 
             for q in [1, 5, 10, 20]:
-                recall = self.compute_accuracy2(flatten(Ds[-50:]), topn=q)
+                if test_data is None:
+                    recall = self.compute_accuracy2(flatten(Ds[-50:]), topn=q)
+                else:
+                    recall = self.compute_accuracy3(test_data, topn=q)
+
                 print '\ttop {} accuracy: {}'.format(q, recall)
 
 
