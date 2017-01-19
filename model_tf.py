@@ -2,34 +2,8 @@
 import numpy as np
 from numpy.random import randint
 from scipy.spatial.distance import cosine
-from tqdm import tqdm, trange
 import tensorflow as tf
 import subprocess
-
-
-# &&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&
-# TF helper functions
-
-
-def repeat(X, n_repeats):
-    X = tf.tile(X[...,None], [1, n_repeats])    # flatten(X) = 123123123
-    X = tf.transpose(X)                         # flatten(X) = 111222333
-    return tf.reshape(X, [-1])
-
-
-
-# TODO: save somewhere else -- this is a useful function!
-# def matrix_repeat(A, n_repeats=None):
-#     dims = A.get_shape()
-#     n_repeats = dims[0] if n_repeats is None else n_repeats
-#     X = tf.reshape(A, [-1])         # (tensor -> vector)
-#     X = tf.tile(X, [n_repeats, 1])  # (vector -> matrix)    # Tile along new axis
-#     X = tf.reshape(X, [-1])         # (matrix -> vector)
-#     dims[0] *= n_repeats                                    # Return tensor dimensions
-#     return tf.reshape(X, dims)      # (vector -> tensor)
-
-def tile(A):
-    return tf.tile(A, [int(A.get_shape()[0]), 1])
 
 def variable_summaries(var, name):
     """Attach a lot of summaries to a Tensor.

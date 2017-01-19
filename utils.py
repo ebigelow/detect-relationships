@@ -1,5 +1,3 @@
-# from skimage.transform import resize
-# from skimage.io import imread
 import pickle
 import os
 import numpy as np
@@ -366,6 +364,7 @@ def sg_indexes(scene_graphs, label_dict):
 
 import sys
 sys.path.append('/localdisk/ebigelow/lib/visual_genome_python_driver/')
+sys.path.append('/Users/eric/code/visual_genome_python_driver/')
 import src.local as vg
 def load_sg_batcher(data_dir, data_id_dir, label_dict, start_idx=0, end_idx=-1,
                     batch_size=10, data_epochs=20, which_net='objnet',

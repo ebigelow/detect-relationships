@@ -95,7 +95,7 @@ class CustomVgg16:
             return relu
 
     def fc_layer(self, bottom, name, train=False, w_init_shape=None, b_init_shape=None):
-        with tf.variable_scope(name):with tf.variable_scope(name):
+        with tf.variable_scope(name):
             shape = bottom.get_shape().as_list()
             dim = 1
             for d in shape[1:]:

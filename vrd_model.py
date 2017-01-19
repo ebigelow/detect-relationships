@@ -2,7 +2,7 @@ import numpy as np
 from utils import loadmat, mat_to_triplets, batch_triplets
 from model import Model
 
-import sys
+# import sys
 # sys.path.append('/localdisk/ebigelow/lib/visual_genome_python_driver')
 # import src.local as vg
 
@@ -50,9 +50,12 @@ Ds_test  = batch_triplets(D_test)
 
 test_data = (Ds_test, obj_probs_, rel_feats_)
 
+
+save_file = 'data/models/vrd_weights_3.npy'
+
 # --------------------------------------------------------------------------------------------------
 # Run model
 
-model = Model(obj_probs, rel_feats, w2v, word2idx, learning_rate=0.1, lamb1=5e-3, max_iters=50, noise=1.0)
+model = Model(obj_probs, rel_feats, w2v, word2idx, learning_rate=1.0, lamb1=5e-3, max_iters=20, noise=1.0)
 #import ipdb; ipdb.set_trace()
-model.SGD(Ds_train, test_data)
+model.SGD(Ds_train, test_data, save_file=save_file)
