@@ -5,6 +5,7 @@ from utils import loadmat, mat_to_tf
 from model_tf import Model
 from utils import load_sg_batcher
 from tqdm import tqdm, trange
+import sys; sys.path.append('..')
 
 tf.app.flags.DEFINE_float('gpu_mem_fraction', 0.9, '')
 

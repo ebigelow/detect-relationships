@@ -1,8 +1,10 @@
-from utils import load_sg_batcher
 import tensorflow as tf
-from vgg16 import CustomVgg16
 import numpy as np
 from tqdm import tqdm
+
+import sys; sys.path.append('..')
+from utils import load_sg_batcher
+from vgg16 import CustomVgg16
 
 tf.app.flags.DEFINE_float('gpu_mem_fraction', 0.95, '')
 

@@ -1,8 +1,10 @@
 import numpy as np
+import sys
+
+sys.path.append('..')
 from utils import sg_to_triplets, batch_triplets
 from model import Model
 
-import sys
 sys.path.append('/localdisk/ebigelow/lib/visual_genome_python_driver')
 import src.local as vg
 

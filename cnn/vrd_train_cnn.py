@@ -1,4 +1,5 @@
 import tensorflow as tf
+import sys; sys.path.append('..')
 from utils import load_data_batcher
 from vgg16 import CustomVgg16
 from numpy import mean

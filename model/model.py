@@ -1,7 +1,7 @@
 
 import numpy as np
 import itertools
-from numpy.random import randint
+from numpy.random import randint, random
 from scipy.spatial.distance import cosine
 from tqdm import tqdm, trange
 
@@ -25,6 +25,14 @@ def objs2reluid_vrd(O1, O2):
 def flatten(ls): 
     return [i for subl in ls for i in subl]
 
+def shuffle(ls):
+    return sorted(ls, key=lambda _: random())
+
+def tshuffle(ls):
+    return tqdm(shuffle(ls))
+
+import time
+tm = lambda: time.time()
 
 
 class Model:
@@ -70,11 +78,10 @@ class Model:
         self.num_samples   = num_samples
         self.lamb1         = lamb1
         self.lamb2         = lamb2
-        self.V_dict      = {}
-        self.f_dict      = {}
         self.upfun       = 'SGD'    # TODO
         self.objs2reluid = objs2reluid_vg if data_set=='vg' else objs2reluid_vrd
         self.init_weights()
+        self.init_tabular()
 
     def init_weights(self):
         nfeats = self.rel_feats.values()[0].shape[0]
@@ -100,11 +107,12 @@ class Model:
 
     def update(self, W=None, b=None, Z=None, s=None):
         if self.upfun == 'ADAD':
-            self.update_adad(W,b,Z,s)
+            self.adadelta(W,b,Z,s)
         else:
             if W is not None:
                 self.W = W
                 self.f_dict = {}
+                self.f_full_tab = None   #self.f_full()# TODO:   if self.tab_f else None
             if b is not None:
                 self.b = b
                 self.f_dict = {}
@@ -118,7 +126,6 @@ class Model:
 
     def adadelta(self, W, b, Z, s):
         # TODO: initialize self.Eg_sq, self.Edx_sq
-
         g = {}
         for k,v in [('W',W), ('b',b), ('Z',Z), ('s',s)]:
             if v is None: 
@@ -142,13 +149,29 @@ class Model:
         self.Edx_sq[k] = Edx_sq
         self.__dict__[k] += dx
 
+    def init_tabular(self):
+        self.V_dict = {}
+        self.f_dict = {}
+        self.f_full_tab = None
+        self.f_full()       # TODO:   if self.tab_f else None
+        self.init_w2v_tab()
+
+    def init_w2v_tab(self):
+        w2v, N, K = (self.w2v, range(self.n), range(self.k))
+
+        co = lambda i1, i2: cosine(w2v['obj'][i1],   w2v['obj'][i2])
+        cr = lambda k1, k2: cosine(w2v['rel'][k1],   w2v['rel'][k2])
+
+        self.w2v_nt = np.array([[co(i1, i2) for i2 in N] for i1 in N])
+        self.w2v_vt = np.array([[co(k1, k2) for k2 in K] for k1 in K])
+
+
     # -------------------------------------------------------------------------------------------------------
 
     def w2v_dist(self, R1, R2):
-        N, w2v = (self.n, self.w2v)
-        return cosine(w2v['obj'][R1[0]],   w2v['obj'][R2[0]]) +  \
-               cosine(w2v['obj'][R1[1]],   w2v['obj'][R2[1]]) +  \
-               cosine(w2v['rel'][R1[2]],   w2v['rel'][R2[2]])
+        i1, j1, k1 = R1
+        i2, j2, k2 = R2
+        return self.w2v_nt[i1, i2] + self.w2v_nt[j1,j2] + self.w2v_vt[k1, k2]
 
     def d(self, R1, R2):
         """
@@ -160,33 +183,40 @@ class Model:
         d = (d_rel ** 2) / d_obj
         return d if (d > 0) else 1e-10
 
-
     def f(self, R):
         """
         Reduce relationship <i,j,k> to scalar language space.
 
         """
-        key = R
-        if key not in self.f_dict:
-            i,j,k = R
-            W,b = (self.W, self.b)
-            wvec = self.word_vec(i, j)
-            self.f_dict[key] = np.dot(W[k].T, wvec) + b[k]
+        i,j,k = R
 
-        return self.f_dict[key]
+        if self.f_full_tab is not None:
+            return self.f_full_tab[i,j,k]
+
+        if R not in self.f_dict:
+            wvec = self.word_vec(i, j)
+            f = np.dot(self.W[k].T, wvec) + self.b[k]
+            self.f_dict[R] = f
+
+        return self.f_dict[R]
 
     def f_full(self):
-        w_i = self.w2v['obj'][None,...]                             # (1, N, 300)
-        w_i = np.concatenate([w_i, np.zeros_like(w_i)], axis=2)     # (1, N, 600)
-        w_j = self.w2v['obj'][:, np.newaxis, :]                     # (N, 1, 300)
-        w_j = np.concatenate([np.zeros_like(w_j), w_j], axis=2)     # (1, N, 600)
+        if self.f_full_tab is None:
+            w_i = self.w2v['obj'][None, ...]                            # (1, N, 300)
+            w_i = np.concatenate([w_i, np.zeros_like(w_i)], axis=2)     # (1, N, 600)
+            w_j = self.w2v['obj'][:, np.newaxis, :]                     # (N, 1, 300)
+            w_j = np.concatenate([np.zeros_like(w_j), w_j], axis=2)     # (1, N, 600)
 
-        n,k = (self.n, self.k)
-        B = np.reshape(np.tile(self.b, n**2), (k, n, n)).T          # (1,)  ->  (N, N, K)
+            n,k = (self.n, self.k)
+            B = np.reshape(np.tile(self.b, n**2), (k, n, n)).T          # (1,)  ->  (N, N, K)
 
-        tile_wv = w_i + w_j                                         # np auto-tiles `w_i`, `w_j` to (N, N, 300)
-        F = np.tensordot(tile_wv, self.W, axes=(2,1)) + B           # (N, N, 600)  x  (K, 600)     
-        return F
+            tile_wv = w_i + w_j                                         # np auto-tiles `w_i`, `w_j` to (N, N, 300)
+            F = np.tensordot(tile_wv, self.W, axes=(2,1)) + B           # (N, N, 600)  x  (K, 600)     
+
+            self.f_full_tab = F
+            return F
+        else:
+            return self.f_full_tab
 
     def V(self, R, O1, O2, verbose=False):
         """
@@ -311,11 +341,6 @@ class Model:
         obj_probs_train, rel_feats_train = (self.obj_probs, self.rel_feats)
         self.obj_probs, self.rel_feats = (obj_probs_, rel_feats_)
 
-        #import ipdb; ipdb.set_trace()
-        #import time; tm = lambda: time.time()
-        #t1=tm(); print [D[0] in self.predict_Rs2(D[1], D[2], 100) for Ds_ in Ds[:1] for D in Ds_]; print 'time: {}'.format(tm() - t1)
-        #t1=tm(); o=Ds[3][0]; print (o[0] in [(R, self.V(R,o[1],o[2], verbose=True) * self.f(R)) for R in itertools.product(range(self.n),range(self.n),range(self.k))]); print 'time: {}'.format(tm() - t1)
-
         # Mean Avg Precision
         if topn == 'map':
             recall = 0.0
@@ -337,18 +362,18 @@ class Model:
         return recall
 
     def compute_accuracy_FINAL(self, Ds, test_data, topn=100, ntest=100, thing=2):
+        print '\ncomputing accuracy!'
 
         if thing == 1:
             recall = self.compute_accuracy((test_data[0][:ntest],) + test_data[1:], topn=topn)
-
+            print '\t\ttop {} accuracy: {}'.format(topn, recall)
         else:
             for topn in [1,5,10,20]:
                 if test_data is None:
                     recall = self.compute_accuracy2(flatten(Ds[-50:]), topn=topn)
                 else:
                     recall = self.compute_accuracy3((test_data[0][:ntest],) + test_data[1:], topn=topn)
-
-        print '\t\ttop {} accuracy: {}'.format(topn, recall)
+                print '\t\ttop {} accuracy: {}'.format(topn, recall)
 
 
     def update_dLdW(self, D, R, lr=1.0):
@@ -378,10 +403,10 @@ class Model:
 
             cost = max(1. - V(R,O1,O2) * f(R) + V(R_,O1_,O2_) * f(R_), 0.)
             if cost > 0:
-                W[k]  += lr * np.concatenate((w2v[i], w2v[j]))    * V(R,O1,O2)
-                b[k]  += lr                                       * V(R,O1,O2)
-                W[k_] -= lr * np.concatenate((w2v[i_], w2v[j_]))  * V(R_,O1_,O2_)
-                b[k_] -= lr                                       * V(R_,O1_,O2_)
+                W[k]  += lr * np.concatenate((w2v[i], w2v[j]))    #* V(R,O1,O2)
+                b[k]  += lr                                       #* V(R,O1,O2)
+                W[k_] -= lr * np.concatenate((w2v[i_], w2v[j_]))  #* V(R_,O1_,O2_)
+                b[k_] -= lr                                       #* V(R_,O1_,O2_)
                 self.update(W,b)
 
     def update_dCdZ(self, D, R, O1, O2, Nd, lr=1.0):
@@ -400,19 +425,31 @@ class Model:
                 id_rel  = self.objs2reluid(O1, O2)
                 id_rel_ = self.objs2reluid(O1_, O2_)
 
-                Z[k]  += lr * obj_probs[O1][i]   * obj_probs[O2][j]   * rel_feats[id_rel]   * f(R) 
-                s[k]  += lr * obj_probs[O1][i]   * obj_probs[O2][j]                         * f(R) 
-                Z[k_] -= lr * obj_probs[O1_][i_] * obj_probs[O2_][j_] * rel_feats[id_rel_]  * f(R_)
-                s[k_] -= lr * obj_probs[O1_][i_] * obj_probs[O2_][j_]                       * f(R_)
+                Z[k]  += lr * obj_probs[O1][i]   * obj_probs[O2][j]   * rel_feats[id_rel]   #* f(R) 
+                s[k]  += lr * obj_probs[O1][i]   * obj_probs[O2][j]                         #* f(R) 
+                Z[k_] -= lr * obj_probs[O1_][i_] * obj_probs[O2_][j_] * rel_feats[id_rel_]  #* f(R_)
+                s[k_] -= lr * obj_probs[O1_][i_] * obj_probs[O2_][j_]                       #* f(R_)
                 self.update(Z=Z, s=s)
 
     def updateall_dKdW(self, lr=1.0):
+        """
+        TODO
+        ----
+        - speed this up by computing K for i,j,k tensor (700k size) then index it by 
+          sampled relationship counts
+        - could we sample these counts directly as a tensor and do an inner product w/ K?
+
+        """
         f, d = (self.f, self.d)
         W, b = (self.W, self.b)
 
         R_rand = lambda: (randint(self.n), randint(self.n), randint(self.k))
         G = 0.0
 
+        # Precompute `f_full` if we haven't yet
+        if self.f_full_tab is None: self.f_full()
+
+        print 'Computing Mean(G) for K\n'
         R_samples1 = [(R_rand(), R_rand()) for n in range(self.num_samples)]
         for R1, R2 in tqdm(R_samples1):
             f_ = f(R1) - f(R2)
@@ -424,6 +461,7 @@ class Model:
         G_avg = G / Ns
         R_samples2 = [(R_rand(), R_rand()) for n in range(self.num_samples)]
         
+        print 'Computing Mean for K\n'
         # Compute dG/dW & G over second set of samples, using mean(G)
         for R1, R2 in tqdm(R_samples2):
             i1, j1, k1 = R1
@@ -458,182 +496,25 @@ class Model:
         for epoch in range(self.max_iters):
             lr = self.learning_rate  / np.sqrt( 1 + epoch/2 )
 
-            for D in tqdm(Ds):
-                for R, O1, O2 in tqdm(D):
-
-                    if epoch % 2 == 1:
+            for D in tshuffle(Ds):
+                for R, O1, O2 in tshuffle(D):
+                    if 'L' not in ablate:
                         self.update_dLdW(D, R, lr)                  # dL / dW
+                    if 'C' not in ablate:
                         self.update_dCdW(D, R, O1, O2, Nd, lr)      # dC / dW
-                    else:
                         self.update_dCdZ(D, R, O1, O2, Nd, lr)      # dC / dTheta
 
-            if epoch % 2 == 1:
+            if 'K' not in ablate:
                 self.updateall_dKdW(lr)                             # dK / dW
 
-            self.save_weights(save_file)                            # save weights & print cost
+            self.save_weights(save_file)                            # Save weights & print cost
 
-            #C = self.C(D); L = self.lamb1 * self.L(D); K = self.lamb2 * self.K()
-            #print '\tit {} | C:{}  L:{}  K:{}  | dCost'.format(epoch, C,L,K, (C + L + K) - prev_obj)
-            #prev_obj = C + L + K 
-
-            if 1:  #epoch % 2 == 1:
-                print '\ncomputing accuracy!\n'
-                self.compute_accuracy_FINAL(self, Ds, test_data, topn=100, ntest=100, thing=2)
-
-
-
-    def SGD_original(self, Ds, test_data=None, save_file='data/models/vrd_weights.npy', recall_topn=1, ablate=[]):
-        """
-        Perform SGD over eqs 4 (K), 5 (L), 6 (C)
-
-        """
-        obj_probs, rel_feats, w2v = (self.obj_probs, self.rel_feats, self.w2v['obj'])
-        V, f, d = (self.V, self.f, self.d)
-        W, b, Z, s = (self.W, self.b, self.Z, self.s)
-        prev_obj = 0.0
-
-        Df = flatten(Ds)
-
-        for epoch in range(self.max_iters):
-
-            # Use to get change in cost (mc = mean cost)
-            mc = 0.0
-            lr = self.learning_rate  / np.sqrt( 1 + epoch/2 )
-
-            # Iterate over data for each image
-            for D in tqdm(Ds):
-
-                # Iterate over data points (stochastically)
-                for R, O1, O2 in tqdm(D):
-                    i,j,k = R
-
-                    # Even epochs --> update W,b
-                    if epoch % 2 == 1:
-
-                        # Likelihood (L)
-                        # --------------
-                        for R_2, O1_2, O2_2 in D:
-                            i_2,j_2,k_2 = R_2
-                            if 1 + f(R_2) - f(R) > 0:
-                                W[k]   -= lr * self.lamb1 * np.concatenate((w2v[i], w2v[j]))
-                                b[k]   -= lr * self.lamb1
-                                W[k_2] += lr * self.lamb1 * np.concatenate((w2v[i_2], w2v[j_2]))
-                                b[k_2] += lr * self.lamb1
-                                self.update(W=W, b=b)
-
-                        # Rank-loss (C)
-                        # -------------
-                        # Get (R, O1, O2) that maximizes term in equation 6
-                        #
-                        #   some pairs of objects participated in multiple relationships, and
-                        #   not all relationships are mapped out completely. 
-                        #
-                        #   So it to avoid penalizing the model for predicting a relationship correctly just 
-                        #   because it's not part of our ground truth, added that constraint.
-                        
-                        D_ = [(R_,O1_,O2_) for R_,O1_,O2_ in D if (R_ != R) or (O1_ != O1 or O2_ != O2)]
-                        if D_:
-                            R_,O1_,O2_ = min(D_, key=lambda (r_,o1_,o2_): -V(r_,o1_,o2_) * f(r_))
-                            i_,j_,k_ = R_
-
-                            # Compute value for ` max{cost, 0} ` in equation 6
-                            cost = max(1. - V(R,O1,O2) * f(R) + V(R_,O1_,O2_) * f(R_), 0.)
-                            mc  += cost / len(Df)
-                            if cost > 0:
-                                W[k]  += lr * np.concatenate((w2v[i], w2v[j]))    * V(R,O1,O2)
-                                b[k]  += lr                                       * V(R,O1,O2)
-                                W[k_] -= lr * np.concatenate((w2v[i_], w2v[j_]))  * V(R_,O1_,O2_)
-                                b[k_] -= lr                                       * V(R_,O1_,O2_)
-                                self.update(W=W, b=b)
-
-
-                    # Odd epochs --> update Z,s
-                    else:
-                        # Get (R, O1, O2) that maximizes term in equation 6
-                        D_ = [(R_,O1_,O2_) for R_,O1_,O2_ in D if (R_ != R) and (O1_ != O1 or O2_ != O2)]
-                        if D_:
-                            R_,O1_,O2_ = min(D_, key=lambda (r_,o1_,o2_): -V(r_,o1_,o2_) * f(r_))
-                            i_,j_,k_ = R_
-
-                            # Compute value for ` max{cost, 0} ` in equation 6
-                            cost = max(1. - V(R,O1,O2) * f(R) + V(R_,O1_,O2_) * f(R_), 0.)
-                            mc  += cost / len(Df)
-
-                            # Rank-loss (C)
-                            # ----------
-                            if cost > 0:
-                                id_rel  = self.objs2reluid(O1, O2)
-                                id_rel_ = self.objs2reluid(O1_, O2_)
-
-                                Z[k]  += lr * obj_probs[O1][i]   * obj_probs[O2][j]   * rel_feats[id_rel]   * f(R) 
-                                s[k]  += lr * obj_probs[O1][i]   * obj_probs[O2][j]                         * f(R) 
-                                Z[k_] -= lr * obj_probs[O1_][i_] * obj_probs[O2_][j_] * rel_feats[id_rel_]  * f(R_)
-                                s[k_] -= lr * obj_probs[O1_][i_] * obj_probs[O2_][j_]                       * f(R_)
-                                self.update(Z=Z, s=s)
-
-
-            # Minimize variance (K)
-            # ---------------------
-            R_rand = lambda: (randint(self.n), randint(self.n), randint(self.k))
-
-            if epoch % 2 == 1:
-                G = 0.0
-
-                # Compute mean(G) over [1/10] initial set of samples
-                R_samples1 = ((R_rand(), R_rand()) for n in range(self.num_samples))
-                
-                for R1, R2 in tqdm(R_samples1):
-                    f_ = f(R1) - f(R2)
-                    d_ = d(R1, R2)
-                    G += f_ ** 2.  / d_
-
-                # Compute dG/dW & G over second set of samples, using mean(G)
-                Ns = self.num_samples
-                G_avg = G / Ns
-                R_samples2 = [(R_rand(), R_rand()) for n in range(self.num_samples)]
-                
-                for R1, R2 in tqdm(R_samples2):
-                    i1, j1, k1 = R1
-                    i2, j2, k2 = R2
-                    w1 = self.word_vec(i1, j1)
-                    w2 = self.word_vec(i2, j2)
-                    f_ = f(R1) - f(R2)
-                    d_ = d(R1, R2)
-
-                    dG1 = w1 * f_ * 2.  / d_
-                    dG2 = w2 * f_ * 2.  / d_
-                    G   = f_ ** 2.  / d_
-                    
-                    step = lr * self.lamb2
-                    W[k1] -= step * (G - G_avg) * dG1 * (2. / Ns)
-                    W[k2] += step * (G - G_avg) * dG2 * (2. / Ns)
-                    self.update(W=W)
-
-            # Save weights & print cost
-            self.save_weights(save_file)
-
-            # C = self.C(D)
-            # L = self.lamb1 * self.L(D)
-            # K = self.lamb2 * self.K()
-
-            # print '\tit {} | C:{}  L:{}  K:{}'.format(epoch, C,L,K)
-            # print '\tit {} | change in cost: {}'.format(epoch, (C + L + K) - prev_obj)
+            # t1 = tm()
+            # C,L,K = (self.C(D), (self.lamb1 * self.L(D)), (self.lamb2 * self.K()))
+            # print '\tit {} | C:{}  L:{}  K:{}  \n  dCost: {} |  Time: {}'.format(epoch, C,L,K, C+L+K-prev_obj, tm()-t1)
             # prev_obj = C + L + K 
 
-            if 1:  #epoch % 2 == 1:
-                print '\ncomputing accuracy!\n'
-                q = 100
-                dp = 10000
-                recall = self.compute_accuracy((test_data[0][:100],) + test_data[1:], topn=q)
-                print '\n\t\ttop {} accuracy: {}\n'.format(q, recall)
-                # for q in [1,5,10,20]:
-                #     if test_data is None:
-                #         recall = self.compute_accuracy2(flatten(Ds[-50:]), topn=q)
-                #     else:
-                #         recall = self.compute_accuracy3(test_data[:300], topn=q) 
-
-                #     print '\t\ttop {} accuracy: {}'.format(q, recall)
-
+            self.compute_accuracy_FINAL(Ds, test_data, topn=100, ntest=10000, thing=2)
 
 
     def word_vec(self, i, j):
