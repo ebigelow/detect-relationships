@@ -378,29 +378,22 @@ def load_sg_batcher(data_dir, data_id_dir, label_dict, start_idx=0, end_idx=-1,
             yield batchify_data(rel_meta, batch_size)
 
 def get_sg_data(scene_graphs, img_mean, img_dir, label_dict):
-    n, k = (len(label_dict['obj']), len(label_dict['rel']))
     obj_data = []
     rel_data = []
 
     for sg in scene_graphs:
-        img = imread(img_dir + sg.image.url.split('/')[-1])
+        fname = sg.image.url.split('/')[-1]
 
         for r in sg.relationships:
             s, o = (r.subject, r.object)
-            img_s = square_crop(img, 224, s.x, s.y, s.width, s.height) - img_mean
-            img_o = square_crop(img, 224, o.x, o.y, o.width, o.height) - img_mean
-            img_r = square_crop(img, 224, r.x, r.y, r.width, r.height) - img_mean
 
-            s_index = [label_dict['obj'][sy] for sy in s.synsets if sy in label_dict['obj']][0]
-            o_index = [label_dict['obj'][sy] for sy in o.synsets if sy in label_dict['obj']][0]
-            r_index = [label_dict['rel'][sy] for sy in r.synset if sy in label_dict['rel']][0]
-            sd = np.zeros((n));  sd[s_index] = 1
-            od = np.zeros((n));  od[o_index] = 1
-            rd = np.zeros((k));  rd[r_index] = 1
+            i = [label_dict['obj'][sy] for sy in s.synsets if sy in label_dict['obj']][0]
+            j = [label_dict['obj'][sy] for sy in o.synsets if sy in label_dict['obj']][0]
+            k = [label_dict['rel'][sy] for sy in r.synset  if sy in label_dict['rel']][0]
 
-            obj_data.append((img_s, sd))
-            obj_data.append((img_o, od))
-            rel_data.append((img_r, rd))
+            obj_data.append(( fname,  i,  (s.x, s.y, s.width, s.height) ))
+            obj_data.append(( fname,  j,  (o.x, o.y, o.width, o.height) ))
+            rel_data.append(( fname,  k,  (r.x, r.y, r.width, r.height) ))
 
     return list(obj_data), list(rel_data)
 

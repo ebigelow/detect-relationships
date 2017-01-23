@@ -10,22 +10,23 @@ from utils import get_sg_data, batch_mats, rel_coords, vg
 tf.app.flags.DEFINE_bool( 'use_gpu',          False,  '')
 tf.app.flags.DEFINE_float('gpu_mem_fraction', 0.95,   '')
 
+tf.app.flags.DEFINE_string('layer',       'prob',                                  ' ')
 tf.app.flags.DEFINE_string('which_net',   'objnet',                                'either (objnet | relnet)')
-tf.app.flags.DEFINE_string('weights',     'data/vg/models/objnet_vgg16_vg_9.npy',  'Load weights from this file')
-tf.app.flags.DEFINE_string('save_file',   'data/vg/models/obj_probs.npy',          'Save layer output here')
+tf.app.flags.DEFINE_string('weights',     '../data/vg/models/objnet_vgg16_vg_9.npy',  'Load weights from this file')
+tf.app.flags.DEFINE_string('save_file',   '../data/vg/models/obj_probs.npy',          'Save layer output here')
 # tf.app.flags.DEFINE_string('which_net',   'relnet',                                     'either (objnet | relnet)')
 #tf.app.flags.DEFINE_string('weights',      'data/vg/models/relnet_vgg16_vg_8.npy',   'Load weights from this file')
 #tf.app.flags.DEFINE_string('save_file',    'data/vg/models/rel_feats.npy',               'Save layer output here')
 
 tf.app.flags.DEFINE_integer('start_idx',   90000, '')
-tf.app.flags.DEFINE_integer('end_idx',     90100, '')
+tf.app.flags.DEFINE_integer('end_idx',     90010, '')
 tf.app.flags.DEFINE_integer('batch_size',  2,   '')
 
-tf.app.flags.DEFINE_string('img_dir',     'data/vg/images/', ' ')
-tf.app.flags.DEFINE_string('img_mean',    'data/mean.npy',   ' ')
-tf.app.flags.DEFINE_string('json_dir',    'data/vg/vg_short/',               '')
-tf.app.flags.DEFINE_string('json_id_dir', 'data/vg/vg_short/by-id/',         '')
-tf.app.flags.DEFINE_string('label_dict',  'data/vg/vg_short/label_dict.npy', '')
+tf.app.flags.DEFINE_string('img_dir',     '../data/vg/images/', ' ')
+tf.app.flags.DEFINE_string('img_mean',    '../data/mean.npy',   ' ')
+tf.app.flags.DEFINE_string('json_dir',    '../data/vg/vg_short/',               '')
+tf.app.flags.DEFINE_string('json_id_dir', '../data/vg/vg_short/by-id/',         '')
+tf.app.flags.DEFINE_string('label_dict',  '../data/vg/vg_short/label_dict.npy', '')
 
 FLAGS = tf.app.flags.FLAGS
 
@@ -56,16 +57,15 @@ if __name__ == '__main__':
 
     net = CustomVgg16(FLAGS.weights)
     net.build(images_var, train=False, output_size=output_size)
-
-    lay = 'prob' if FLAGS.which_net == 'objnet' else 'fc7'
-    layer = getattr(net, lay)
+    layer = getattr(net, FLAGS.layer)
 
     # Run on images & save outputs (TODO: save output layer for relnet)
     with session_init() as sess:
-        tf.initialize_all_variables().run()
+        tf.global_variables_initializer()
         feature_dict = {}
 
-        for idx2uid, batch_imgs in img_batcher:
+        # TODO: why does this not loop for only 100 items???
+        for idx2uid, batch_imgs in tqdm(img_batcher):
             feed_dict = {images_var: batch_imgs}
             out = sess.run(layer, feed_dict=feed_dict)
 
