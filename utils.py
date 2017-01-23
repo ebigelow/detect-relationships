@@ -328,7 +328,7 @@ def batch_triplets(D):
 # VG - scene graphs to cnn training data
 
 import sys
-sys.path.append('/localdisk/ebigelow/lib/visual_genome_python_driver/')
+sys.path.append('/u/ebigelow/lib/visual_genome_python_driver/')
 sys.path.append('/Users/eric/code/visual_genome_python_driver/')
 import src.local as vg
 
