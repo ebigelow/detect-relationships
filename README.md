@@ -17,11 +17,14 @@ This is an implementation of [Visual Relationship Detection with Language Priors
     - remove unused stuff from utils
     - clean up code for rel_uid / obj_uid
     - implement a version that doesn't use visual module / language module 
+    - maybe separate utils into separate files for vg/vrd or cnn/model?
 
 
 - on macbook, test vg CNN for predicting test classes
     - how accurate is vrd CNN alone for predicting predicates?
 
+
+- could batching have gone wrong with training cnn on VG?
 
 
 

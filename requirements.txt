@@ -1,0 +1,6 @@
+numpy 
+scipy
+tensorflow
+simplejson
+tqdm
+cv2

@@ -357,9 +357,9 @@ def sg_indexes(scene_graphs, label_dict):
                 o.index = oind
     return scene_graphs
 
-def load_sg_batcher(data_dir, data_id_dir, label_dict, start_idx=0, end_idx=-1,
-                    batch_size=10, data_epochs=20, which_net='objnet',
-                    img_dir='data/vg/images/', img_mean=None):
+def load_sg_batcher(data_dir, data_id_dir, label_dict, img_mean,
+                    start_idx=0, end_idx=-1, batch_size=10, data_epochs=20, 
+                    which_net='objnet', output_size=100, img_dir='data/vg/images/'):
 
     #n, k = (len(label_dict['obj']), len(label_dict['rel']))
     N = end_idx - start_idx
@@ -370,14 +370,14 @@ def load_sg_batcher(data_dir, data_id_dir, label_dict, start_idx=0, end_idx=-1,
         scene_graphs = vg.GetSceneGraphs(e, e+batch_len, data_dir, data_id_dir)
         scene_graphs = rel_coords(scene_graphs)
         #scene_graphs = sg_indexes(scene_graphs, label_dict)
-        obj_meta, rel_meta = get_sg_data(scene_graphs, img_mean, img_dir, label_dict)
+        obj_meta, rel_meta = get_sg_data(scene_graphs, img_dir, label_dict)
 
         if which_net == 'objnet':
-            yield batchify_data(obj_meta, batch_size)
+            yield batchify_sg_data(obj_meta, img_mean, batch_size, img_dir, output_size)
         else:
-            yield batchify_data(rel_meta, batch_size)
+            yield batchify_sg_data(rel_meta, img_mean, batch_size, img_dir, output_size)
 
-def get_sg_data(scene_graphs, img_mean, img_dir, label_dict):
+def get_sg_data(scene_graphs, img_dir, label_dict):
     obj_data = []
     rel_data = []
 
@@ -396,6 +396,45 @@ def get_sg_data(scene_graphs, img_mean, img_dir, label_dict):
             rel_data.append(( fname,  k,  (r.x, r.y, r.width, r.height) ))
 
     return list(obj_data), list(rel_data)
+
+def one_hot(idx, shape):
+    v = np.zeros(shape)
+    v[idx] = 1
+    return v
+
+def batchify_sg_data(data, mean, batch_size, img_dir, output_size=100):
+    n = np.ceil(float(len(data)) / batch_size).astype(int)
+    batched_data = []
+
+    for b in range(n):
+        batch_data = data[b*batch_size : (b + 1)*batch_size]
+        if len(batch_data) == 0: continue
+
+        batch_fnames, batch_labs, batch_coords = zip(*batch_data)
+        batch_imgs = []
+
+        for fname, label, coords in batch_data:
+            img = imread(img_dir + fname)
+            x, y, w, h = coords
+            crop = square_crop(img, 224, x, y, w, h) - mean
+            batch_imgs.append(crop)
+
+        # import ipdb; ipdb.set_trace()
+
+        # Pad by repeating zeros
+        pad_len = batch_size - len(batch_data)
+        if pad_len > 0:
+            batch_imgs += tuple(np.zeros_like(batch_imgs[0]) for _ in range(pad_len))
+            batch_labs += tuple(np.zeros_like(batch_labs[0]) for _ in range(pad_len))
+
+        new_imgs   = np.concatenate([i[np.newaxis, ...] for i in batch_imgs], axis=0)
+        new_labels = np.vstack([ one_hot(i, output_size) for i in batch_labs ])
+        batched_data.append((batch_fnames, new_imgs, new_labels))
+
+    return batched_data
+
+
+
 
 
 # ---------------------------------------------------------------------------------------------------------
