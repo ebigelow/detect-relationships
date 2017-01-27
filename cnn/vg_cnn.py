@@ -70,7 +70,7 @@ if __name__ == '__main__':
 
 
     # Run on images & save outputs
-    outputs = []
+    outputs = {'fc7': dict(), 'prob': dict(), 'label': dict()}
     with session_init() as sess:
         tf.global_variables_initializer()
 
@@ -78,9 +78,11 @@ if __name__ == '__main__':
             for fnames, images, labels in tqdm(test_batch):     # loop over `batch_size`
                 b_fc7, b_prob, b_acc = sess.run([net.fc7, net.prob, accuracy], 
                                                 feed_dict={ground_truth: labels, images_var: images})
-                q = len(fnames)
-                outputs.append({ 'fc7':b_fc7[:q], 'prob':b_prob[:q], 'acc':b_acc, 
-                                 'fnames':fnames, 'labels':labels[:q] }) 
+                for q in range(len(fnames)):
+                    fn = fnames[q]
+                    outputs['fc7'][fn]   = b_fc7[q]
+                    outputs['prob'][fn]  = b_prob[q]
+                    outputs['label'][fn] = labels[q]
 
     np.save(FLAGS.save_file, outputs)
 
