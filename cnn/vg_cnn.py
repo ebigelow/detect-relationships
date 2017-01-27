@@ -79,7 +79,7 @@ if __name__ == '__main__':
                 b_fc7, b_prob, b_acc = sess.run([net.fc7, net.prob, accuracy], 
                                                 feed_dict={ground_truth: labels, images_var: images})
                 q = len(fnames)
-                outputs.append({ 'fc7':b_fc7[:q], 'prob':b_prob[:q], 'acc':b_acc[:q], 
+                outputs.append({ 'fc7':b_fc7[:q], 'prob':b_prob[:q], 'acc':b_acc, 
                                  'fnames':fnames, 'labels':labels[:q] }) 
 
     np.save(FLAGS.save_file, outputs)
