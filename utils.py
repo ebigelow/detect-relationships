@@ -395,8 +395,8 @@ def get_sg_data(scene_graphs, img_dir, label_dict):
             o_coords = (o.x, o.y, o.width, o.height)
             r_coords = (r.x, r.y, r.width, r.height)
 
-            s_uid = ( fname,  s,  s_coords )
-            o_uid = ( fname,  o,  o_coords )
+            s_uid = ( fname,  s.names[0],  s_coords )
+            o_uid = ( fname,  o.names[0],  o_coords )
             r_uid = frozenset((s_uid, o_uid))
 
             obj_data.append((s_uid, i,  s_coords))

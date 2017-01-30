@@ -80,7 +80,8 @@ if __name__ == '__main__':
                                                 feed_dict={ground_truth: labels, images_var: images})
                 for q in range(len(uids)):
                     uid = uids[q]
-                    outputs['fc7'][uid]   = b_fc7[q]
+                    if FLAGS.which_net == 'relnet':
+                        outputs['fc7'][uid]   = b_fc7[q]
                     outputs['prob'][uid]  = b_prob[q]
                     outputs['label'][uid] = labels[q]
 
