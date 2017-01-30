@@ -422,7 +422,7 @@ def batchify_sg_data(data, mean, batch_size, img_dir, output_size=100):
         batch_imgs = []
 
         for uid, label, coords in batch_data:
-            fname = uid[0]
+            fname = uid[0] if (type(uid) != frozenset) else list(uid)[0]
             img = imread(img_dir + fname)
             x, y, w, h = coords
             crop = square_crop(img, 224, x, y, w, h) - mean
