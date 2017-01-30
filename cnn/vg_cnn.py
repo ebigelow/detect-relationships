@@ -85,4 +85,5 @@ if __name__ == '__main__':
                     outputs['label'][uid] = labels[q]
 
     np.save(FLAGS.save_file, outputs)
+    print '\nFile saved to:{}\n'.format(FLAGS.save_file)
 
