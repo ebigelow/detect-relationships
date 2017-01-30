@@ -1,12 +1,12 @@
 #!/bin/bash
 
-export CUDA_VISIBLE_DEVICES=0
-export LD_LIBRARY_PATH=/usr/local/cuda-7.5/lib64:/localdisk/ebigelow/lib/cudnn-7.0/lib64/
-export LD_LIBRARY_PATH=/usr/local/cuda/lib64:/localdisk/ebigelow/lib/cudnn-7.5/lib64/
+export CUDA_VISIBLE_DEVICES=1
+#export LD_LIBRARY_PATH=/usr/local/cuda-7.5/lib64:/localdisk/ebigelow/lib/cudnn-7.0/lib64/
+export LD_LIBRARY_PATH=/usr/local/cuda/lib64:/u/ebigelow/lib/cudnn-8.0/lib64/
 source ~/.virtualenvs/tf/bin/activate
 
-GPU_MEM=0.9
-BATCH_SIZE=100
+GPU_MEM=0.95
+BATCH_SIZE=70
 START_IDX=90000
 END_IDX=90100
 
