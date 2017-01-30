@@ -421,7 +421,8 @@ def batchify_sg_data(data, mean, batch_size, img_dir, output_size=100):
         batch_uids, batch_labs, batch_coords = zip(*batch_data)
         batch_imgs = []
 
-        for fname, label, coords in batch_data:
+        for uid, label, coords in batch_data:
+            fname = uid[0]
             img = imread(img_dir + fname)
             x, y, w, h = coords
             crop = square_crop(img, 224, x, y, w, h) - mean
