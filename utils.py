@@ -391,9 +391,17 @@ def get_sg_data(scene_graphs, img_dir, label_dict):
             j = [label_dict['obj'][sy] for sy in o.synsets if sy in label_dict['obj']][0]
             k = [label_dict['rel'][sy] for sy in r.synset  if sy in label_dict['rel']][0]
 
-            obj_data.append(( fname,  i,  (s.x, s.y, s.width, s.height) ))
-            obj_data.append(( fname,  j,  (o.x, o.y, o.width, o.height) ))
-            rel_data.append(( fname,  k,  (r.x, r.y, r.width, r.height) ))
+            s_coords = (s.x, s.y, s.width, s.height)
+            o_coords = (o.x, o.y, o.width, o.height)
+            r_coords = (r.x, r.y, r.width, r.height)
+
+            s_uid = ( fname,  s,  s_coords )
+            o_uid = ( fname,  o,  o_coords )
+            r_uid = frozenset((s_uid, o_uid))
+
+            obj_data.append((s_uid, i,  s_coords))
+            obj_data.append((o_uid, j,  o_coords))
+            rel_data.append((r_uid, k,  r_coords))
 
     return list(obj_data), list(rel_data)
 
@@ -410,7 +418,7 @@ def batchify_sg_data(data, mean, batch_size, img_dir, output_size=100):
         batch_data = data[b*batch_size : (b + 1)*batch_size]
         if len(batch_data) == 0: continue
 
-        batch_fnames, batch_labs, batch_coords = zip(*batch_data)
+        batch_uids, batch_labs, batch_coords = zip(*batch_data)
         batch_imgs = []
 
         for fname, label, coords in batch_data:
@@ -419,17 +427,15 @@ def batchify_sg_data(data, mean, batch_size, img_dir, output_size=100):
             crop = square_crop(img, 224, x, y, w, h) - mean
             batch_imgs.append(crop)
 
-        # import ipdb; ipdb.set_trace()
-
         # Pad by repeating zeros
         pad_len = batch_size - len(batch_data)
         if pad_len > 0:
             batch_imgs += tuple(np.zeros_like(batch_imgs[0]) for _ in range(pad_len))
             batch_labs += tuple(np.zeros_like(batch_labs[0]) for _ in range(pad_len))
 
-        new_imgs   = np.concatenate([i[np.newaxis, ...] for i in batch_imgs], axis=0)
-        new_labels = np.vstack([ one_hot(i, output_size) for i in batch_labs ])
-        batched_data.append((batch_fnames, new_imgs, new_labels))
+        padded_imgs   = np.concatenate([i[np.newaxis, ...] for i in batch_imgs], axis=0)
+        padded_labels = np.vstack([ one_hot(i, output_size) for i in batch_labs ])
+        batched_data.append((batch_uids, padded_imgs, padded_labels))
 
     return batched_data
 
