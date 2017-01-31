@@ -9,8 +9,8 @@ GPU_MEM=0.95
 BATCH_SIZE=70
 DATA_EPOCHS=70
 
-START_IDX=90000
-END_IDX=90100
+START_IDX=0
+END_IDX=-1
 
 #IMG_DIR="../data/vg/images/"
 #IMG_MEAN="../data/vg/mean.npy"

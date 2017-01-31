@@ -70,20 +70,31 @@ if __name__ == '__main__':
 
 
     # Run on images & save outputs
-    outputs = {'fc7': dict(), 'prob': dict(), 'label': dict()}
+    all_uids = []
+    outputs = {'fc7':   np.array([]).reshape((0, 4096)), 
+               'prob':  np.array([]).reshape((0, output_size)), 
+               'label': np.array([]).reshape((0, output_size)) }
+
     with session_init() as sess:
         tf.global_variables_initializer()
 
         for test_batch in tqdm(test_batcher):                   # loop over `data_epochs`
+            out_fc7, out_prob, out_label = ([], [], [])
+
             for uids, images, labels in tqdm(test_batch):       # loop over `batch_size`
                 b_fc7, b_prob, b_acc = sess.run([net.fc7, net.prob, accuracy], 
                                                 feed_dict={ground_truth: labels, images_var: images})
                 for q in range(len(uids)):
-                    uid = uids[q]
-                    outputs['fc7'][uid]   = b_fc7[q]
-                    outputs['prob'][uid]  = b_prob[q]
-                    outputs['label'][uid] = labels[q]
+                    all_uids.append(uids[q])
+                    out_fc7.append(b_fc7[q])
+                    out_prob.append(b_prob[q])
+                    out_label.append(labels[q])
 
+            outputs['fc7'].concatenate(np.vstack(out_fc7))
+            outputs['prob'].concatenate(np.vstack(out_prob))
+            outputs['label'].concatenate(np.vstack(out_label))
+            
+    outputs['idx2uid'] = {i:uid for i, uid in enumerate(all_uids)}
     np.save(FLAGS.save_file, outputs)
     print '\nFile saved to:{}\n'.format(FLAGS.save_file)
 

@@ -51,15 +51,23 @@ This is an implementation of [Visual Relationship Detection with Language Priors
 ---
 ### paper
 
+
+- **email celu**
+    * recall @ k  results for predicate detection??  
+    * testing -- in testing code, wtf is UnionCNN  --  why don't you include Z,s????
+
+
+
 - explain Lu et al.'s results
 
 - more background on VG bullshit
 
 - go through TODOs
 
-- email celu about:
-    * recall @ k  results for predicate detection??  
-    * testing -- in testing code, wtf is UnionCNN  --  why don't you include Z,s????
+
+
+- mention how we contributed to `github.com/visual_genome_python_driver` by adding local loading methods
+    * split data up into "data batches" (for RAM), so we don't have to reload images for every TF batch
 
 
 ---
