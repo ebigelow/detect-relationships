@@ -56,22 +56,32 @@ This is an implementation of [Visual Relationship Detection with Language Priors
     * recall @ k  results for predicate detection??  
     * testing -- in testing code, wtf is UnionCNN  --  why don't you include Z,s????
 
-
-
-- explain Lu et al.'s results
+- explain word2vec??
 
 - more background on VG bullshit
 
 - go through TODOs
 
 
+- mention how tabularizing V,f in code speeds things up (runtime tests?)
 
 - mention how we contributed to `github.com/visual_genome_python_driver` by adding local loading methods
     * split data up into "data batches" (for RAM), so we don't have to reload images for every TF batch
 
 
+- rant about general issues with the concept of "a bunch of images with single-class object/predicate labels"
+    * there's tons of each in every.single.image!!
+    * explain that their "quadratic explosion" of O(N^2 K) detectors is a load of horseshit
+
+
 ---
 ### code
+
+
+
+- **is it possible that we read K wrong, samples are only drawn from REAL data???**
+
+
 
 - data for graphs
     - vrd model -- accuracy, C,L,K
@@ -103,7 +113,7 @@ This is an implementation of [Visual Relationship Detection with Language Priors
 
 
 
-
+- try with massively cut down model, with much more even distribution of object / predicates
 
 
 
