@@ -1,8 +1,8 @@
-import pickle
 import os
 import numpy as np
 import scipy.io as spio
-from cv2 import imread, resize
+from scipy.ndimage import imread
+from scipy.misc import imresize
 import tensorflow as tf
 from collections import defaultdict
 
@@ -73,7 +73,7 @@ def square_crop(img, crop_size, x, y, w, h):
         y2 = y + h
     f = lambda c: int(max(c, 0))
     crop = img[f(y1):f(y2), f(x1):f(x2)]
-    new_img = resize(crop, (crop_size, crop_size))
+    new_img = imresize(crop, (crop_size, crop_size))
     return new_img
 
 def rel_coords(scene_graphs):
@@ -146,7 +146,9 @@ def get_data(mat_data, obj_dict, rel_dict, img_dir, mean_file='mean.npy'):
                 continue
             img_rels = [img_rels]
 
-        img = imread(img_dir + datum.filename)
+        rgb = imread(img_dir + datum.filename)
+        bgr = rgb[:,:,::-1]
+
         # print img_dir+datum.filename; print img.shape
         for rel in img_rels:
             ymin1, ymax1, xmin1, xmax1 = rel.subBox
@@ -157,9 +159,9 @@ def get_data(mat_data, obj_dict, rel_dict, img_dir, mean_file='mean.npy'):
             h2, w2 = (ymax2 - ymin2, xmax2 - xmin2)
             h3, w3 = (ymax3 - ymin3, xmax3 - xmin3)
 
-            img1 = square_crop(img, 224, xmin1, ymin1, w1, h1) - np.load(mean_file)
-            img2 = square_crop(img, 224, xmin2, ymin2, w2, h2) - np.load(mean_file)
-            img3 = square_crop(img, 224, xmin3, ymin3, w3, h3) - np.load(mean_file)
+            img1 = square_crop(bgr, 224, xmin1, ymin1, w1, h1) - np.load(mean_file)
+            img2 = square_crop(bgr, 224, xmin2, ymin2, w2, h2) - np.load(mean_file)
+            img3 = square_crop(bgr, 224, xmin3, ymin3, w3, h3) - np.load(mean_file)
 
             s,v,o = rel.phrase
             sd = np.zeros((100)); sd[obj_dict[s]] = 1
@@ -328,7 +330,7 @@ def batch_triplets(D):
 # VG - scene graphs to cnn training data
 
 import sys
-sys.path.append('/u/ebigelow/lib/visual_genome_python_driver/')
+sys.path.append('/home/eric/lib/visual_genome_python_driver/')
 sys.path.append('/Users/eric/code/visual_genome_python_driver/')
 import src.local as vg
 
@@ -358,7 +360,7 @@ def sg_indexes(scene_graphs, label_dict):
     return scene_graphs
 
 def load_sg_batcher(data_dir, data_id_dir, label_dict, img_mean,
-                    start_idx=0, end_idx=-1, batch_size=10, data_epochs=20, 
+                    start_idx=0, end_idx=-1, batch_size=10, data_epochs=20,
                     which_net='objnet', output_size=100, img_dir='data/vg/images/'):
 
     #n, k = (len(label_dict['obj']), len(label_dict['rel']))
@@ -423,9 +425,11 @@ def batchify_sg_data(data, mean, batch_size, img_dir, output_size=100):
 
         for uid, label, coords in batch_data:
             fname = uid[0] if (type(uid) != frozenset) else list(uid)[0][0]
-            img = imread(img_dir + fname)
+            rgb = imread(img_dir + fname)
+            bgr = rgb[:,:,::-1]
+
             x, y, w, h = coords
-            crop = square_crop(img, 224, x, y, w, h) - mean
+            crop = square_crop(bgr, 224, x, y, w, h) - mean
             batch_imgs.append(crop)
 
         # Pad by repeating zeros
@@ -472,4 +476,3 @@ def sg_to_triplets(scene_graphs, word2idx):
             D.append((R, O1, O2))
 
     return D
-

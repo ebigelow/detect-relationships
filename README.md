@@ -5,6 +5,40 @@ This is an implementation of [Visual Relationship Detection with Language Priors
 
 
 
+
+
+
+
+# TODO new
+
+
+- compute new means for VRD and VG images
+- train & test on VRD
+    * add TF summaries to training
+- run model on VRD
+    * try new K sampling method
+
+- check out VG data
+    * stratified sample smaller set
+    * IDEA: use a small sample of VG, then see if it works tested on VRD!
+- train on smaller dataset
+    * fix scene graph indexing -- 0 to 108,000
+- test
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 ---
 # TODO
 
@@ -15,7 +49,7 @@ This is an implementation of [Visual Relationship Detection with Language Priors
 - clean / reorganize code . . .
     - remove unused stuff from utils
     - clean up code for rel_uid / obj_uid
-    - implement a version that doesn't use visual module / language module 
+    - implement a version that doesn't use visual module / language module
     - maybe separate utils into separate files for vg/vrd or cnn/model?
 
 
@@ -98,15 +132,15 @@ This is an implementation of [Visual Relationship Detection with Language Priors
 
 - test dist in VRD dataset of relation frequencies
     => Ours  : (1) 7.5%  (5) 34.9%  (10) 68.1%  (20) 79.1%
-   
+
        TRAIN : (1) 17%   (5) 55%    (10) 79%    (20) 94%
        TEST  : (1) 18%   (5) 56%    (10) 81%    (20) 94%
 
- 
+
     * X  what happens if we use the *same* probs from test to predict training?
     * what do our distributions of guesses look like? similar s-v-o vs. just v?
     * what is confusion matrix like -- does it make sense?
-    * worst case: our model is always predicting k ordered according to prior only 
+    * worst case: our model is always predicting k ordered according to prior only
 
     * **test dist in VRD of relationships i,j,k triplets  for top 50, 100**
 
@@ -144,10 +178,3 @@ This is an implementation of [Visual Relationship Detection with Language Priors
     * make pretty and accessible to anyone w/ link
 
 - early stopping if accuracy on validation set decrease?
-
-
-
-
-
-
-

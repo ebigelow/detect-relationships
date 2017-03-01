@@ -1,0 +1,8 @@
+*.npy
+*.pk
+*.zip
+*.pyc
+*.png
+
+data
+scripts/ipynb/.ipynb_checkpoints

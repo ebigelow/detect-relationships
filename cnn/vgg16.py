@@ -5,6 +5,22 @@ import numpy as np
 import tensorflow as tf
 import subprocess
 
+
+# From: https://www.tensorflow.org/get_started/summaries_and_tensorboard
+def variable_summaries(var):
+    """Attach a lot of summaries to a Tensor (for TensorBoard visualization)."""
+    with tf.name_scope('summaries'):
+        mean = tf.reduce_mean(var)
+        tf.summary.scalar('mean', mean)
+        with tf.name_scope('stddev'):
+            stddev = tf.sqrt(tf.reduce_mean(tf.square(var - mean)))
+            tf.summary.scalar('stddev', stddev)
+            tf.summary.scalar('max', tf.reduce_max(var))
+            tf.summary.scalar('min', tf.reduce_min(var))
+            tf.summary.histogram('histogram', var)
+
+
+
 # From: https://github.com/machrisaa/tensorflow-vgg/issues/7
 class CustomVgg16:
     def __init__(self, vgg16_npy_path=None):
@@ -46,10 +62,6 @@ class CustomVgg16:
         self.conv5_3 = self.conv_layer(self.conv5_2, 'conv5_3', train)
         self.pool5 = self.max_pool(self.conv5_3, 'pool5')
 
-        # if train:
-        #     with tf.device('/cpu:0'):
-        #         self.fc6 = self.fc_layer(self.pool5, 'fc6', train)
-        # else:
         self.fc6 = self.fc_layer(self.pool5, 'fc6', train)
 
         assert self.fc6.get_shape().as_list()[1:] == [4096]
@@ -62,15 +74,12 @@ class CustomVgg16:
         if train:
             self.relu7 = tf.nn.dropout(self.relu7, 0.5)
 
-        # replace this one with our own layer of result
-        # self.fc8 = self.fc_layer(self.relu7, 'fc8', train)
-        # self.prob = tf.nn.softmax(self.fc8, name='prob')
-
         self.fc8 = self.fc_layer(self.relu7, 'fc8_custom', train,
                                        w_init_shape=[4096, output_size],
                                        b_init_shape=[output_size])
-        self.prob = tf.nn.softmax(self.fc8, name='prob')
-        #tf.histogram_summary('prob', self.prob)
+        with tf.name_scope('prob'):
+            self.prob = tf.nn.softmax(self.fc8, name='prob')
+            variable_summaries(self.prob)
 
         self.data_dict = None
 
@@ -83,7 +92,7 @@ class CustomVgg16:
                               padding='SAME', name=name)
 
     def conv_layer(self, bottom, name, train=False):
-        with tf.variable_scope(name):
+        with tf.name_scope(name):
             filt = self.get_conv_filter(name, train)
 
             conv = tf.nn.conv2d(bottom, filt, [1, 1, 1, 1], padding='SAME')
@@ -95,29 +104,34 @@ class CustomVgg16:
             return relu
 
     def fc_layer(self, bottom, name, train=False, w_init_shape=None, b_init_shape=None):
-        with tf.variable_scope(name):
+        with tf.name_scope(name):
             shape = bottom.get_shape().as_list()
             dim = 1
             for d in shape[1:]:
                 dim *= d
             x = tf.reshape(bottom, [-1, dim])
 
-            weights = self.get_fc_weight(name, train, w_init_shape)
-            biases = self.get_bias(name, train, b_init_shape)
+            with tf.name_scope(name):
+                weights = self.get_fc_weight(name, train, w_init_shape)
+                biases = self.get_bias(name, train, b_init_shape)
 
             fc = tf.nn.bias_add(tf.matmul(x, weights), biases)
+            variable_summaries(fc)
 
-            #tf.histogram_summary(name, fc)
             return fc
 
     def get_conv_filter(self, layer_name, train=False, init_shape=None):
         return self.get_var(layer_name, 0, 'filter', train, init_shape)
 
     def get_bias(self, layer_name, train=False, init_shape=None):
-        return self.get_var(layer_name, 1, 'biases', train, init_shape)
+        with tf.name_scope('bias'):
+            var = self.get_var(layer_name, 1, 'biases', train, init_shape)
+        return var
 
     def get_fc_weight(self, layer_name, train=False, init_shape=None):
-        return self.get_var(layer_name, 0, 'weights', train, init_shape)
+        with tf.name_scope('weights'):
+            var = self.get_var(layer_name, 0, 'weights', train, init_shape)
+        return var
 
     def get_var(self, layer_name, idx, var_name, train, init_shape):
         if train:
@@ -140,15 +154,16 @@ class CustomVgg16:
         return var
 
     def get_accuracy(self, GTs):
-        with tf.variable_scope('accuracy'):
-            with tf.variable_scope('correct_prediction'):
-                correct_predictions = tf.equal(tf.argmax(self.prob, 1), tf.argmax(GTs, 1))
+        with tf.name_scope('accuracy'):
+            with tf.name_scope('hits'):
+                hits = tf.equal(tf.argmax(self.prob, 1), tf.argmax(GTs, 1))
+                hits = tf.cast(hits, tf.float32)
+                variable_summaries(hits)
 
-            with tf.variable_scope('accuracy'):
-                accuracy = tf.reduce_mean(tf.cast(correct_predictions, tf.float32))
+            with tf.name_scope('accuracy'):
+                accuracy = tf.reduce_mean(hits)
+            tf.summary.scalar('accuracy', accuracy)
 
-            #tf.histogram_summary('correct_prediction', correct_prediction)
-            #tf.scalar_summary('accuracy', accuracy)
         return accuracy
 
     def get_all_var(self):
@@ -176,14 +191,17 @@ class CustomVgg16:
             print 'saved to: {}\nnot uploaded.'.format(save_path)
 
     def get_train_op(self, learning_rate=0.005):
-        with tf.variable_scope('ground_truth'):
+        with tf.name_scope('ground_truth'):
             ground_truth = tf.placeholder(tf.float32, shape=self.prob.get_shape())
 
-        with tf.variable_scope('cost'):
-            cost = tf.reduce_mean(tf.nn.sigmoid_cross_entropy_with_logits(self.prob, ground_truth))
+        with tf.name_scope('cost'):
+            cross_entropy = tf.nn.sigmoid_cross_entropy_with_logits(logits=self.prob, labels=ground_truth)
+            with tf.name_scope('total'):
+                cost = tf.reduce_mean(cross_entropy)
 
-        # TODO: different training operations?
-        #train_op = tf.train.AdamOptimizer(learning_rate).minimize(cost)
-        train_op = tf.train.GradientDescentOptimizer(learning_rate).minimize(cost)
-        #tf.scalar_summary('cost', cost)
+        with tf.name_scope('train'):
+            # TODO: different training operations?
+            #train_op = tf.train.AdamOptimizer(learning_rate).minimize(cost)
+            train_op = tf.train.GradientDescentOptimizer(learning_rate).minimize(cost)
+
         return ground_truth, cost, train_op
