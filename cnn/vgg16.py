@@ -74,12 +74,12 @@ class CustomVgg16:
         if train:
             self.relu7 = tf.nn.dropout(self.relu7, 0.5)
 
-        self.fc8 = self.fc_layer(self.relu7, 'fc8_custom', train,
+        self.fc8 = self.fc_layer(self.relu7, 'fc8', train,
                                        w_init_shape=[4096, output_size],
                                        b_init_shape=[output_size])
-        with tf.name_scope('prob'):
-            self.prob = tf.nn.softmax(self.fc8, name='prob')
-            variable_summaries(self.prob)
+        # with tf.name_scope('prob'):
+        self.prob = tf.nn.softmax(self.fc8, name='prob')
+        # variable_summaries(self.prob)
 
         self.data_dict = None
 
@@ -111,9 +111,8 @@ class CustomVgg16:
                 dim *= d
             x = tf.reshape(bottom, [-1, dim])
 
-            with tf.name_scope(name):
-                weights = self.get_fc_weight(name, train, w_init_shape)
-                biases = self.get_bias(name, train, b_init_shape)
+            weights = self.get_fc_weight(name, train, w_init_shape)
+            biases = self.get_bias(name, train, b_init_shape)
 
             fc = tf.nn.bias_add(tf.matmul(x, weights), biases)
             variable_summaries(fc)
@@ -124,13 +123,11 @@ class CustomVgg16:
         return self.get_var(layer_name, 0, 'filter', train, init_shape)
 
     def get_bias(self, layer_name, train=False, init_shape=None):
-        with tf.name_scope('bias'):
-            var = self.get_var(layer_name, 1, 'biases', train, init_shape)
+        var = self.get_var(layer_name, 1, 'biases', train, init_shape)
         return var
 
     def get_fc_weight(self, layer_name, train=False, init_shape=None):
-        with tf.name_scope('weights'):
-            var = self.get_var(layer_name, 0, 'weights', train, init_shape)
+        var = self.get_var(layer_name, 0, 'weights', train, init_shape)
         return var
 
     def get_var(self, layer_name, idx, var_name, train, init_shape):
@@ -171,7 +168,7 @@ class CustomVgg16:
         var_list = [(var, name, D[name].index(var)) for name in D for var in D[name]]
         return zip(*var_list)
 
-    def save_npy(self, sess, save_path='vgg.npy', upload_path=None):
+    def save_npy(self, sess, save_path='vgg.npy'):
         assert isinstance(sess, tf.Session)
         data_dict = {}
 
@@ -184,24 +181,25 @@ class CustomVgg16:
             data_dict[names[i]][idxs[i]] = var_out[i]
 
         np.save(save_path, data_dict)
-        if upload_path:
-            subprocess.call(['skicka','-no-browser-auth','upload',upload_path])
-            print 'saved to: {}\nuploaded to: {}'.format(save_path, upload_path)
-        else:
-            print 'saved to: {}\nnot uploaded.'.format(save_path)
 
-    def get_train_op(self, learning_rate=0.005):
+
+    def get_train_op(self, optimizer='gradient', opt_params={}):
         with tf.name_scope('ground_truth'):
             ground_truth = tf.placeholder(tf.float32, shape=self.prob.get_shape())
 
         with tf.name_scope('cost'):
             cross_entropy = tf.nn.sigmoid_cross_entropy_with_logits(logits=self.prob, labels=ground_truth)
-            with tf.name_scope('total'):
+            variable_summaries(cross_entropy)
+            with tf.name_scope('mean'):
                 cost = tf.reduce_mean(cross_entropy)
 
+        opt_dict = { 'gradient': tf.train.GradientDescentOptimizer,
+                     'rmsprop' : tf.train.RMSPropOptimizer,
+                     'adagrad' : tf.train.AdagradOptimizer,
+                     'adadelta': tf.train.AdadeltaOptimizer,
+                     'adam'    : tf.train.AdamOptimizer     }
+        Optimizer = opt_dict[optimizer]
         with tf.name_scope('train'):
-            # TODO: different training operations?
-            #train_op = tf.train.AdamOptimizer(learning_rate).minimize(cost)
-            train_op = tf.train.GradientDescentOptimizer(learning_rate).minimize(cost)
+            train_op = Optimizer(**opt_params).minimize(cost)
 
         return ground_truth, cost, train_op

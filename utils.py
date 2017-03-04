@@ -3,38 +3,19 @@ import numpy as np
 import scipy.io as spio
 from scipy.ndimage import imread
 from scipy.misc import imresize
-import tensorflow as tf
 from collections import defaultdict
 
-
-
-
-# Used in VRD - train_cnn.py  and  VG
-def batchify_data(data, batch_size):
-    n = np.ceil(float(len(data)) / batch_size).astype(int)
-    batched_data = []
-    for b in range(n):
-        batch_data = data[b*batch_size : (b + 1)*batch_size]
-        if len(batch_data) == 0: continue
-        batch_imgs, batch_labs = zip(*batch_data)
-        pad_len = batch_size - len(batch_data)
-        # Pad by repeating 1 image . . . probably not the best way to do this
-        if pad_len > 0:
-            batch_imgs += tuple(batch_imgs[0] for _ in range(pad_len))
-            batch_labs += tuple(batch_labs[0] for _ in range(pad_len))
-        new_imgs   = np.concatenate([i[np.newaxis, ...] for i in batch_imgs], axis=0)
-        new_labels = np.concatenate([i[np.newaxis, ...] for i in batch_labs], axis=0)
-        batched_data.append((new_imgs, new_labels))
-
-    return batched_data
 
 
 # ---------------------------------------------------------------------------------------------------------
 # Image processing
 
-def square_crop(img, crop_size, x, y, w, h):
+def square_crop(img, crop_size, x, y, w, h, reshape=True):
     """
     Crop square image at (y,x) with dims (h,w), resize to crop_size.
+
+    reshape (bool) :  do we squash (reshape) the original bounding box crop image,
+                      or keep its proportions and crop to a square shape?
 
     """
     ih, iw, _ = img.shape
@@ -72,7 +53,10 @@ def square_crop(img, crop_size, x, y, w, h):
         y1 = y
         y2 = y + h
     f = lambda c: int(max(c, 0))
-    crop = img[f(y1):f(y2), f(x1):f(x2)]
+    if reshape:
+        crop = img
+    else:
+        crop = img[f(y1):f(y2), f(x1):f(x2)]
     new_img = imresize(crop, (crop_size, crop_size))
     return new_img
 
@@ -136,9 +120,12 @@ def get_data(mat_data, obj_dict, rel_dict, img_dir, mean_file='mean.npy'):
     rel_data = []
 
     for datum in mat_data:
+        # Skip images with no relationship data present -- there are some
         if not hasattr(datum, 'relationship'):
             #print 'skipping image {}, no relationship'.format(img_dir + datum.filename)
             continue
+
+        # TODO is this bit necessary?
         img_rels = datum.relationship
         if not hasattr(img_rels, '__getitem__'):
             if not all(i in dir(img_rels) for i in ['objBox', 'phrase', 'subBox']):
@@ -146,40 +133,40 @@ def get_data(mat_data, obj_dict, rel_dict, img_dir, mean_file='mean.npy'):
                 continue
             img_rels = [img_rels]
 
+        # Swap RGB channels to BGR
         rgb = imread(img_dir + datum.filename)
         bgr = rgb[:,:,::-1]
 
-        # print img_dir+datum.filename; print img.shape
         for rel in img_rels:
-            ymin1, ymax1, xmin1, xmax1 = rel.subBox
-            ymin2, ymax2, xmin2, xmax2 = rel.objBox
-            ymin3, ymax3, xmin3, xmax3 = (min(ymin1, ymin2), max(ymax1, ymax2),
-                                          min(xmin1, xmin2), max(xmax1, xmax2))
-            h1, w1 = (ymax1 - ymin1, xmax1 - xmin1)
-            h2, w2 = (ymax2 - ymin2, xmax2 - xmin2)
-            h3, w3 = (ymax3 - ymin3, xmax3 - xmin3)
-
-            img1 = square_crop(bgr, 224, xmin1, ymin1, w1, h1) - np.load(mean_file)
-            img2 = square_crop(bgr, 224, xmin2, ymin2, w2, h2) - np.load(mean_file)
-            img3 = square_crop(bgr, 224, xmin3, ymin3, w3, h3) - np.load(mean_file)
-
+            # ('subject', 'verb', 'object')
             s,v,o = rel.phrase
-            sd = np.zeros((100)); sd[obj_dict[s]] = 1
-            od = np.zeros((100)); od[obj_dict[o]] = 1
-            vd = np.zeros((70));  vd[rel_dict[v]] = 1
-            obj_data.append((img1, sd))
-            obj_data.append((img2, od))
-            rel_data.append((img3, vd))
+
+            # Get unique id (uid) for subject-verb-object triple
+            s_uid = (datum.filename, s, box_to_coords(*rel.subBox))
+            o_uid = (datum.filename, o, box_to_coords(*rel.objBox))
+            r_uid = objs2reluid_vrd(s_uid, o_uid)
+
+            # UID format: (img_filename, label_word, bbox_coordinates)
+            s_img = square_crop(bgr, 224, *s_uid[2]) - np.load(mean_file)
+            o_img = square_crop(bgr, 224, *o_uid[2]) - np.load(mean_file)
+            r_img = square_crop(bgr, 224, *r_uid[2]) - np.load(mean_file)
+
+            # One-hot label vectors
+            s_label = np.zeros((100));  s_label[obj_dict[s]] = 1
+            o_label = np.zeros((100));  o_label[obj_dict[o]] = 1
+            v_label = np.zeros((70));   v_label[rel_dict[v]] = 1
+
+            # Data format: (img, label, uid)
+            obj_data.append((s_img, s_label, s_uid))
+            obj_data.append((o_img, o_label, o_uid))
+            rel_data.append((r_img, v_label, r_uid))
 
     return list(obj_data), list(rel_data)
 
 
-# ---------------------------------------------------------------------------------------------------------
-# VRD - for `train_cnn.py`
-
-def load_data_batcher(mat_path, obj_list_path, rel_list_path,
-                      batch_size=10, data_epochs=20, which_net='objnet',
-                      img_dir='data/vrd/images/train/', mean_file='mean.npy'):
+def load_vrd_batcher(mat_path, obj_list_path, rel_list_path,
+                     batch_size=10, data_epochs=20, which_net='objnet',
+                     img_dir='data/vrd/images/train/', mean_file='mean.npy'):
     obj_dict = {r:i for i,r in enumerate(loadmat(obj_list_path)['objectListN'])}
     rel_dict = {r:i for i,r in enumerate(loadmat(rel_list_path)['predicate'])}
 
@@ -189,89 +176,40 @@ def load_data_batcher(mat_path, obj_list_path, rel_list_path,
     for e in range(data_epochs):
         meta_batch_data = mat[e*batch_len : (e+1)*batch_len]
         # obj_test, rel_test = get_data(a_test, obj_dict, rel_dict, 'data/vrd/images/test/')
-        obj_meta, rel_meta = get_data(meta_batch_data, obj_dict, rel_dict, img_dir)
+        obj_meta, rel_meta = get_data(meta_batch_data, obj_dict, rel_dict, img_dir, mean_file)
 
         if which_net == 'objnet':
             yield batchify_data(obj_meta, batch_size)
         else:
             yield batchify_data(rel_meta, batch_size)
 
-def test_cnn(net, ground_truth, N_test=1000, which_net='objnet',
-             obj_list_path='data/vrd/objectListN.mat', rel_list_path='data/vrd/predicate.mat',
-             mat_path='data/vrd/annotation_test.mat', images_dir='data/vrd/images/test/'):
-    images_var = tf.placeholder('float', [num_imgs, 224, 224, 3])
-    ground_truth = tf.placeholder(tf.float32, shape=[num_imgs, net.prob.get_shape()[1]])
-    accuracy = net.get_accuracy(ground_truth)
+def batchify_data(data, batch_size):
+    """
+    Split a list of images and labels into batches, then
+      merge into tensors with first dimension `batch_size`.
 
-    d_test = load_data_batcher(mat_path, obj_list_path, rel_list_path, N_test, 1, images_dir, which_net)
-    images, labels = d_test.next()[:N_test]
+    Add padding if not enough images/labels in last batch.
+    """
+    n = np.ceil(float(len(data)) / batch_size).astype(int)
+    batched_data = []
+    for b in range(n):
+        batch_data = data[b*batch_size : (b + 1)*batch_size]
+        if len(batch_data) == 0: continue
+        batch_imgs, batch_labs, batch_uids = zip(*batch_data)
 
-    with session_init() as sess:
-        tf.initialize_all_variables().run()
-        feed_dict = {ground_truth: labels,
-                     images_var: images}
-        summary, acc = sess.run(accuracy, feed_dict=feed_dict)
-        print('Accuracy at step %s: %s' % (i, acc))
-
-
-# ---------------------------------------------------------------------------------------------------------
-# VRD - for `extract_cnn.py`
-
-def batch_mats(imdata, img_dir, mean, batch_len=10, crop_size=224):
-
-    im_path = lambda fn: os.path.join(img_dir, fn)
-    fnames, labels, coords = zip(*imdata)
-
-    for b in xrange(0, len(imdata), batch_len):
-
-        batch_uids   = imdata[b:b + batch_len]
-        batch_coords = coords[b:b + batch_len]
-        batch_fnames = fnames[b:b + batch_len]
-
-        batch_imgs   = [imread(im_path(fn)) - mean for fn in batch_fnames]
-        batch_imdata = zip(batch_imgs, batch_coords)
-
-        batch_crops  = [square_crop(img, crop_size, *co)[None, ...] for img, co in batch_imdata]
-        batch_crops  = np.concatenate(batch_crops, axis=0)
-        batch_crops -= mean
-
-        idx2uid = {idx:uid for idx, uid in enumerate(batch_uids)}
-
-        # TODO: make sure idxs refer to original imgs, not padding
-        pad_len = batch_len - len(batch_uids)
+        # Pad by repeating 1 image . . . probably not the best way to do this
+        pad_len = batch_size - len(batch_data)
         if pad_len > 0:
-            pad_imgs = np.zeros((pad_len, crop_size, crop_size, 3))
-            batch_crops = np.concatenate([batch_crops, pad_imgs], axis=0)
+            batch_imgs += tuple(batch_imgs[0] for _ in range(pad_len))
+            batch_labs += tuple(batch_labs[0] for _ in range(pad_len))
 
-        yield idx2uid, batch_crops
+        new_imgs   = np.concatenate([i[np.newaxis, ...] for i in batch_imgs], axis=0)
+        new_labels = np.concatenate([i[np.newaxis, ...] for i in batch_labs], axis=0)
+        new_uids   = batch_uids +  (None,) * pad_len
+        batched_data.append((new_imgs, new_labels, new_uids))
 
-def mat_to_imdata(mat):
-    """
-    Use filename, phrase, & coords as UID, since there are no object/rel ids.
+    return batched_data
 
-    """
-    obj_data = set()
-    rel_data = set()
-
-    for datum in mat:
-        if not hasattr(datum, 'relationship'):
-            continue
-        img_rels = datum.relationship
-        if not hasattr(img_rels, '__getitem__'):
-            if not all(i in dir(img_rels) for i in ['objBox', 'phrase', 'subBox']):
-                continue
-            img_rels = [img_rels]
-
-        for r in img_rels:
-            s,v,o = r.phrase
-            O1 = (datum.filename, s, box_to_coords(*r.subBox))
-            O2 = (datum.filename, o, box_to_coords(*r.objBox))
-            reluid = objs2reluid_vrd(O1, O2)
-
-            obj_data.update({O1, O2})
-            rel_data.add(reluid)
-
-    return list(obj_data), list(rel_data)
 
 def box_to_coords(ymin, ymax, xmin, xmax):
     return xmin, ymin, (xmax-xmin), (ymax-ymin)
@@ -290,7 +228,12 @@ def objs2reluid_vrd(O1, O2):
 
     return (fname, frozenset([o1,o2]), coords)
 
+
+# ---------------------------------------------------------------------------------------------------------
+# vrd_model.py
+
 def mat_to_triplets(mat_data, word2idx):
+    """Convert matrix data to triplets."""
     D = []
 
     for datum in mat_data:
@@ -313,17 +256,15 @@ def mat_to_triplets(mat_data, word2idx):
             k = word2idx['rel'][v]
             R = (i,j,k)
             D.append((R, sub_id, obj_id))
-
     return D
 
-def batch_triplets(D):
+def group_triplets(D):
+    """Group triplets according to their source image."""
     E = defaultdict(lambda: list())
-
     for d in D:
         fname = d[1][0]
         E[fname].append(d)
-
-    return E.values()
+    return E
 
 
 # ---------------------------------------------------------------------------------------------------------
@@ -401,9 +342,9 @@ def get_sg_data(scene_graphs, img_dir, label_dict):
             o_uid = ( fname,  o.names[0],  o_coords )
             r_uid = frozenset((s_uid, o_uid))
 
-            obj_data.append((s_uid, i,  s_coords))
-            obj_data.append((o_uid, j,  o_coords))
-            rel_data.append((r_uid, k,  r_coords))
+            obj_data.append((s_coords, i, s_uid))
+            obj_data.append((o_coords, j, o_uid))
+            rel_data.append((r_coords, k, r_uid))
 
     return list(obj_data), list(rel_data)
 
@@ -412,7 +353,11 @@ def one_hot(idx, shape):
     v[idx] = 1
     return v
 
-def batchify_sg_data(data, mean, batch_size, img_dir, output_size=100):
+def batchify_sg_data(data, mean, batch_size, img_dir, output_size=100, reshape_imgs=False):
+    """
+    Load images and concat them into batch_size -sized tensors.
+
+    """
     n = np.ceil(float(len(data)) / batch_size).astype(int)
     batched_data = []
 
@@ -420,16 +365,18 @@ def batchify_sg_data(data, mean, batch_size, img_dir, output_size=100):
         batch_data = data[b*batch_size : (b + 1)*batch_size]
         if len(batch_data) == 0: continue
 
-        batch_uids, batch_labs, batch_coords = zip(*batch_data)
+        batch_coords, batch_labs, batch_uids  = zip(*batch_data)
         batch_imgs = []
 
-        for uid, label, coords in batch_data:
+        for coords, label, uid in batch_data:
             fname = uid[0] if (type(uid) != frozenset) else list(uid)[0][0]
             rgb = imread(img_dir + fname)
             bgr = rgb[:,:,::-1]
 
+            # Crop image to coordinates for this data
             x, y, w, h = coords
-            crop = square_crop(bgr, 224, x, y, w, h) - mean
+            rs = reshape_imgs
+            crop = square_crop(bgr, 224, x, y, w, h, reshape=rs) - mean
             batch_imgs.append(crop)
 
         # Pad by repeating zeros
@@ -440,7 +387,7 @@ def batchify_sg_data(data, mean, batch_size, img_dir, output_size=100):
 
         padded_imgs   = np.concatenate([i[np.newaxis, ...] for i in batch_imgs], axis=0)
         padded_labels = np.vstack([ one_hot(i, output_size) for i in batch_labs ])
-        batched_data.append((batch_uids, padded_imgs, padded_labels))
+        batched_data.append((padded_imgs, padded_labels, batch_uids))
 
     return batched_data
 

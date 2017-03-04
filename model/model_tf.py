@@ -2,7 +2,7 @@
 import numpy as np
 from numpy.random import randint
 from scipy.spatial.distance import cosine
-import tensorflow as tf
+# import tensorflow as tf
 import subprocess
 
 def variable_summaries(var, name):

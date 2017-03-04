@@ -5,6 +5,13 @@ from numpy.random import randint, random
 from scipy.spatial.distance import cosine
 from tqdm import tqdm, trange
 
+
+
+def cap_weight(M, cap=1.0):
+    m = abs(M).max()
+    return (M / m) if (m > cap) else M
+
+
 def objs2reluid_vg(O1, O2):
     return frozenset([O1, O2])
 
@@ -22,7 +29,7 @@ def objs2reluid_vrd(O1, O2):
 
     return (fname, frozenset([o1,o2]), coords)
 
-def flatten(ls): 
+def flatten(ls):
     return [i for subl in ls for i in subl]
 
 def shuffle(ls):
@@ -63,8 +70,8 @@ class Model:
 
 
     """
-    def __init__(self, obj_probs, rel_feats, w2v, word2idx,
-                 data_set='vrd', noise=0.05, learning_rate=1.0, max_iters=20,
+    def __init__(self, obj_probs, rel_feats, D_samples, w2v, word2idx,
+                 dataset='vrd', noise=0.05, learning_rate=1.0, max_iters=20,
                  num_samples=500000, lamb1=0.05, lamb2=0.001):
         self.obj_probs     = obj_probs
         self.rel_feats     = rel_feats
@@ -78,10 +85,11 @@ class Model:
         self.num_samples   = num_samples
         self.lamb1         = lamb1
         self.lamb2         = lamb2
-        self.upfun       = 'SGD'    # TODO
-        self.objs2reluid = objs2reluid_vg if data_set=='vg' else objs2reluid_vrd
+        self.dataset       = dataset
+        self.objs2reluid   = objs2reluid_vg if dataset=='vg' else objs2reluid_vrd
         self.init_weights()
         self.init_tabular()
+        self.sample_R_pairs(D_samples)
 
     def init_weights(self):
         nfeats = self.rel_feats.values()[0].shape[0]
@@ -93,67 +101,49 @@ class Model:
 
     def save_weights(self, filename):
         data_dict = { 'W': self.W, 'b': self.b,
-                      'Z': self.Z, 's': self.s  }
+                      'Z': self.Z, 's': self.s,
+                      'params': { 'dataset'       : self.dataset,
+                                  'n'             : self.n,
+                                  'k'             : self.k,
+                                  'noise'         : self.noise,
+                                  'learning_rate' : self.learning_rate,
+                                  'max_iters'     : self.max_iters,
+                                  'num_samples'   : self.num_samples,
+                                  'lamb1'         : self.lamb1,
+                                  'lamb2'         : self.lamb2     }  }
         np.save(filename, data_dict)
         print 'numpy file saved to: {}'.format(filename)
 
     def load_weights(self, filename):
-        data_dict = np.load(filename)
+        data_dict = np.load(filename).item()
         self.W = data_dict['W']
         self.b = data_dict['b']
         self.Z = data_dict['Z']
         self.s = data_dict['s']
+        self.__dict__.update(data_dict['params'])
         print 'numpy file loaded from: {}'.format(filename)
 
+
     def update(self, W=None, b=None, Z=None, s=None):
-        if self.upfun == 'ADAD':
-            self.adadelta(W,b,Z,s)
-        else:
-            if W is not None:
-                self.W = W
-                self.f_dict = {}
-                self.f_full_tab = None   #self.f_full()# TODO:   if self.tab_f else None
-            if b is not None:
-                self.b = b
-                self.f_dict = {}
-            if Z is not None:
-                self.Z = Z
-                self.V_dict = {}
-            if s is not None:
-                self.s = s
-                self.V_dict = {}
-
-
-    def adadelta(self, W, b, Z, s):
-        # TODO: initialize self.Eg_sq, self.Edx_sq
-        g = {}
-        for k,v in [('W',W), ('b',b), ('Z',Z), ('s',s)]:
-            if v is None: 
-                pass    # do nothing
-            else:
-                self.update_adadelta(k, v)
-
-    def update_adadelta(self, k, v):
-        rho = 0.95    # TODO self.rho, self.eps
-        eps = 1e-6
-
-        grad = v - self.__dict__[k]     # compute gradient as (new weights - current weights)
-        
-        Eg_sq_prev = self.Eg_sq[k]
-        Eg_sq = rho * Eg_sq_prev    + (1 - rho) * grad**2       # E[gradient]^2
-
-        Edx_sq_prev = self.Edx_sq[k]
-        dx = -grad * np.sqrt(Edx_sq_prev + eps) / np.sqrt(Eg_sq + eps)  
-        Edx_sq = rho * Edx_sq_prev  + (1 - rho) * dx**2         # E[dx]^2
-
-        self.Edx_sq[k] = Edx_sq
-        self.__dict__[k] += dx
+        if W is not None:
+            self.W = cap_weight(W)
+            self.f_dict = {}
+            self.f_full_tab = None
+        if b is not None:
+            self.b = cap_weight(b)
+            self.f_dict = {}
+        if Z is not None:
+            self.Z = cap_weight(Z)
+            self.V_dict = {}
+        if s is not None:
+            self.s = cap_weight(s)
+            self.V_dict = {}
 
     def init_tabular(self):
         self.V_dict = {}
         self.f_dict = {}
         self.f_full_tab = None
-        self.f_full()       # TODO:   if self.tab_f else None
+        self.f_full()
         self.init_w2v_tab()
 
     def init_w2v_tab(self):
@@ -162,8 +152,9 @@ class Model:
         co = lambda i1, i2: cosine(w2v['obj'][i1],   w2v['obj'][i2])
         cr = lambda k1, k2: cosine(w2v['rel'][k1],   w2v['rel'][k2])
 
+        # TODO the bug here is what *could* have been causing the issues earlier!!!
         self.w2v_nt = np.array([[co(i1, i2) for i2 in N] for i1 in N])
-        self.w2v_vt = np.array([[co(k1, k2) for k2 in K] for k1 in K])
+        self.w2v_vt = np.array([[cr(k1, k2) for k2 in K] for k1 in K])
 
 
     # -------------------------------------------------------------------------------------------------------
@@ -211,7 +202,7 @@ class Model:
             B = np.reshape(np.tile(self.b, n**2), (k, n, n)).T          # (1,)  ->  (N, N, K)
 
             tile_wv = w_i + w_j                                         # np auto-tiles `w_i`, `w_j` to (N, N, 300)
-            F = np.tensordot(tile_wv, self.W, axes=(2,1)) + B           # (N, N, 600)  x  (K, 600)     
+            F = np.tensordot(tile_wv, self.W, axes=(2,1)) + B           # (N, N, 600)  x  (K, 600)
 
             self.f_full_tab = F
             return F
@@ -361,7 +352,7 @@ class Model:
         self.obj_probs, self.rel_feats = (obj_probs_train, rel_feats_train)
         return recall
 
-    def compute_accuracy_FINAL(self, Ds, test_data, topn=100, ntest=100, thing=2):
+    def compute_accuracy_FINAL(self, Ds, test_data, topn=100, ntest=10000, thing=2):
         print '\ncomputing accuracy!'
 
         if thing == 1:
@@ -370,7 +361,7 @@ class Model:
         else:
             for topn in [1,5,10,20]:
                 if test_data is None:
-                    recall = self.compute_accuracy2(flatten(Ds[-50:]), topn=topn)
+                    recall = self.compute_accuracy2(flatten(Ds[-ntest:]), topn=topn)
                 else:
                     recall = self.compute_accuracy3((test_data[0][:ntest],) + test_data[1:], topn=topn)
                 print '\t\ttop {} accuracy: {}'.format(topn, recall)
@@ -388,7 +379,7 @@ class Model:
                 b[k]   -= lr * self.lamb1
                 W[k_2] += lr * self.lamb1 * np.concatenate((w2v[i_2], w2v[j_2]))
                 b[k_2] += lr * self.lamb1
-                self.update(W,b)
+        return W,b
 
     def update_dCdW(self, D, R, O1, O2, Nd, lr=1.0):
         V, f  = (self.V, self.f)
@@ -403,11 +394,11 @@ class Model:
 
             cost = max(1. - V(R,O1,O2) * f(R) + V(R_,O1_,O2_) * f(R_), 0.)
             if cost > 0:
-                W[k]  += lr * np.concatenate((w2v[i], w2v[j]))    #* V(R,O1,O2)
-                b[k]  += lr                                       #* V(R,O1,O2)
-                W[k_] -= lr * np.concatenate((w2v[i_], w2v[j_]))  #* V(R_,O1_,O2_)
-                b[k_] -= lr                                       #* V(R_,O1_,O2_)
-                self.update(W,b)
+                W[k]  += lr * np.concatenate((w2v[i], w2v[j]))    * V(R,O1,O2)
+                b[k]  += lr                                       * V(R,O1,O2)
+                W[k_] -= lr * np.concatenate((w2v[i_], w2v[j_]))  * V(R_,O1_,O2_)
+                b[k_] -= lr                                       * V(R_,O1_,O2_)
+        return W, b
 
     def update_dCdZ(self, D, R, O1, O2, Nd, lr=1.0):
         obj_probs, rel_feats = (self.obj_probs, self.rel_feats)
@@ -425,17 +416,25 @@ class Model:
                 id_rel  = self.objs2reluid(O1, O2)
                 id_rel_ = self.objs2reluid(O1_, O2_)
 
-                Z[k]  += lr * obj_probs[O1][i]   * obj_probs[O2][j]   * rel_feats[id_rel]   #* f(R) 
-                s[k]  += lr * obj_probs[O1][i]   * obj_probs[O2][j]                         #* f(R) 
-                Z[k_] -= lr * obj_probs[O1_][i_] * obj_probs[O2_][j_] * rel_feats[id_rel_]  #* f(R_)
-                s[k_] -= lr * obj_probs[O1_][i_] * obj_probs[O2_][j_]                       #* f(R_)
-                self.update(Z=Z, s=s)
+                Z[k]  += lr * obj_probs[O1][i]   * obj_probs[O2][j]   * rel_feats[id_rel]   * f(R)
+                s[k]  += lr * obj_probs[O1][i]   * obj_probs[O2][j]                         * f(R)
+                Z[k_] -= lr * obj_probs[O1_][i_] * obj_probs[O2_][j_] * rel_feats[id_rel_]  * f(R_)
+                s[k_] -= lr * obj_probs[O1_][i_] * obj_probs[O2_][j_]                       * f(R_)
+        return Z, s
+
+    def sample_R_pairs(self, triplets):
+        # TODO other possibility is that we sample pairs in same image only
+        m = self.num_samples
+        samples = np.random.randint(0, len(triplets), m*2)
+        R_samples = [triplets[s][0] for s in samples]
+        self.R_pairs = zip(R_samples[:m], R_samples[m:])
+
 
     def updateall_dKdW(self, lr=1.0):
         """
         TODO
         ----
-        - speed this up by computing K for i,j,k tensor (700k size) then index it by 
+        - speed this up by computing K for i,j,k tensor (700k size) then index it by
           sampled relationship counts
         - could we sample these counts directly as a tensor and do an inner product w/ K?
 
@@ -443,15 +442,13 @@ class Model:
         f, d = (self.f, self.d)
         W, b = (self.W, self.b)
 
-        R_rand = lambda: (randint(self.n), randint(self.n), randint(self.k))
         G = 0.0
 
         # Precompute `f_full` if we haven't yet
         if self.f_full_tab is None: self.f_full()
 
         print 'Computing Mean(G) for K\n'
-        R_samples1 = [(R_rand(), R_rand()) for n in range(self.num_samples)]
-        for R1, R2 in tqdm(R_samples1):
+        for R1, R2 in tqdm(self.R_pairs):
             f_ = f(R1) - f(R2)
             d_ = d(R1, R2)
             G += f_ ** 2.  / d_
@@ -459,11 +456,10 @@ class Model:
         # Compute mean(G) over [1/10] initial set of samples
         Ns = self.num_samples
         G_avg = G / Ns
-        R_samples2 = [(R_rand(), R_rand()) for n in range(self.num_samples)]
-        
+
         print 'Computing Mean for K\n'
         # Compute dG/dW & G over second set of samples, using mean(G)
-        for R1, R2 in tqdm(R_samples2):
+        for R1, R2 in tqdm(self.R_pairs):
             i1, j1, k1 = R1
             i2, j2, k2 = R2
             w1 = self.word_vec(i1, j1)
@@ -474,12 +470,11 @@ class Model:
             dG1 = w1 * f_ * 2.  / d_
             dG2 = w2 * f_ * 2.  / d_
             G   = f_ ** 2.  / d_
-            
+
             step = lr * self.lamb2
             W[k1] -= step * (G - G_avg) * dG1 * (2. / Ns)
             W[k2] += step * (G - G_avg) * dG2 * (2. / Ns)
-            self.update(W=W)
-
+        return W
 
     def SGD(self, Ds, test_data=None, save_file='data/models/vrd_weights.npy', recall_topn=1, ablate=[]):
         """
@@ -490,31 +485,44 @@ class Model:
         - `self.collect_updates` then `self.update`
 
         """
-        prev_obj = 0.0
         Nd = len(flatten(Ds))
+        prev_obj = 0.0
 
-        for epoch in range(self.max_iters):
+        for epoch in trange(self.max_iters):
             lr = self.learning_rate  / np.sqrt( 1 + epoch/2 )
 
             for D in tshuffle(Ds):
+                W, b, Z, s = (self.W, self.b, self.Z, self.s)
                 for R, O1, O2 in tshuffle(D):
                     if 'L' not in ablate:
-                        self.update_dLdW(D, R, lr)                  # dL / dW
+                        dW, db = self.update_dLdW(D, R, lr)                  # dL / dW
+                        W += dW; b += db
                     if 'C' not in ablate:
-                        self.update_dCdW(D, R, O1, O2, Nd, lr)      # dC / dW
-                        self.update_dCdZ(D, R, O1, O2, Nd, lr)      # dC / dTheta
+                        dW, db = self.update_dCdW(D, R, O1, O2, Nd, lr)      # dC / dW
+                        W += dW; b += db
+                        dZ, ds = self.update_dCdZ(D, R, O1, O2, Nd, lr)      # dC / dTheta
+                        Z += dZ; s += ds
+                self.update(W=W, b=b, Z=Z, s=s)
 
             if 'K' not in ablate:
-                self.updateall_dKdW(lr)                             # dK / dW
+                W = self.updateall_dKdW(lr)                             # dK / dW
+                self.update(W=W)
+
+            print 'W: ', (np.max(self.W), np.min(self.W))
+            print 'b: ', (np.max(self.b), np.min(self.b))
+            print 'Z: ', (np.max(self.Z), np.min(self.Z))
+            print 's: ', (np.max(self.s), np.min(self.s))
 
             self.save_weights(save_file)                            # Save weights & print cost
 
-            # t1 = tm()
-            # C,L,K = (self.C(D), (self.lamb1 * self.L(D)), (self.lamb2 * self.K()))
-            # print '\tit {} | C:{}  L:{}  K:{}  \n  dCost: {} |  Time: {}'.format(epoch, C,L,K, C+L+K-prev_obj, tm()-t1)
-            # prev_obj = C + L + K 
+            t1 = tm()
+            C,L,K = (self.C(D), (self.lamb1 * self.L(D)), (self.lamb2 * self.K()))
+            print '\tit {} | C:{}  L:{}  K:{}  \n  dCost: {} |  Time: {}'.format(epoch, C,L,K, C+L+K-prev_obj, tm()-t1)
+            prev_obj = C + L + K
 
             self.compute_accuracy_FINAL(Ds, test_data, topn=100, ntest=10000, thing=2)
+            self.compute_accuracy_FINAL(Ds, None,      topn=100, ntest=10000, thing=2)
+
 
 
     def word_vec(self, i, j):
@@ -529,9 +537,10 @@ class Model:
         Eq (4): randomly sample relationship pairs and minimize variance.
 
         """
-        R_rand = lambda: (randint(self.n), randint(self.n), randint(self.k))
-        R_samples = ((R_rand(), R_rand()) for n in range(self.num_samples))
-        R_dists = [self.d(R1, R2) for R1, R2 in R_samples]
+        # import ipdb; ipdb.set_trace()
+        #R_rand = lambda: (randint(self.n), randint(self.n), randint(self.k))
+        #R_samples = ((R_rand(), R_rand()) for n in range(self.num_samples))
+        R_dists = [self.d(R1, R2) for R1, R2 in self.R_pairs]
         return np.var(R_dists)
 
     def L(self, D):
@@ -539,6 +548,7 @@ class Model:
         Likelihood of relationships
 
         """
+        # import ipdb; ipdb.set_trace()
         Rs, O1s, O2s = zip(*D)
         fn = lambda R1, R2: max(self.f(R1) - self.f(R2) + 1, 0)
         return sum(fn(R1, R2) for R1 in Rs for R2 in Rs)
@@ -546,12 +556,13 @@ class Model:
     def C(self, D):
         """
         Rank loss function
-    
+
         """
+        # import ipdb; ipdb.set_trace()
         V,f = (self.V, self.f)
         C = 0.0
         for R, O1, O2 in D:
-            c_max = max([ V(R_,O1_,O2_) * f(R_) for R_,O1_,O2_ in D 
+            c_max = max([ V(R_,O1_,O2_) * f(R_) for R_,O1_,O2_ in D
                                                 if (R_ != R) and (O1_ != O1 or O2_ != O2) ])
             c = V(R,O1,O2) * f(R)
             C += max(0,  1 - c + c_max)

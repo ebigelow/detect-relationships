@@ -1,26 +1,28 @@
 import numpy as np
-from utils import loadmat, mat_to_triplets, batch_triplets
-from model import Model
-
-# import sys
-# sys.path.append('/localdisk/ebigelow/lib/visual_genome_python_driver')
-# import src.local as vg
+import os, sys; sys.path.append('..')
+from utils import loadmat, mat_to_triplets, group_triplets
+from model.model import Model
 
 
 # --------------------------------------------------------------------------------------------------
 # Arguments
 
-obj_mat   = 'data/vrd/objectListN.mat'
-rel_mat   = 'data/vrd/predicate.mat'
-w2v_file  = 'data/vrd/w2v.npy'
+data_dir = '../data/vrd/'
 
-train_obj = 'data/vrd/obj_probs.npy'
-train_rel = 'data/vrd/rel_feats.npy'
-train_mat = 'data/vrd/annotation_train.mat'
+save_dir   = data_dir + 'models/vrd/run1/'
+objnet_dir = data_dir + 'models/cnn/objnet_run2/'
+relnet_dir = data_dir + 'models/cnn/relnet_run1/'
 
-test_obj = 'data/vrd/obj_probs_test.npy'
-test_rel = 'data/vrd/rel_feats_test.npy'
-test_mat = 'data/vrd/annotation_test.mat'
+obj_mat   = data_dir + 'mat/objectListN.mat'
+rel_mat   = data_dir + 'mat/predicate.mat'
+train_mat = data_dir + 'mat/annotation_train.mat'
+test_mat  = data_dir + 'mat/annotation_test.mat'
+
+w2v_file  = data_dir   + 'w2v.npy'
+train_obj = objnet_dir + 'out_train.npy'
+test_obj  = objnet_dir + 'out_test.npy'
+train_rel = relnet_dir + 'out_train.npy'
+test_rel  = relnet_dir + 'out_test.npy'
 
 
 # --------------------------------------------------------------------------------------------------
@@ -32,30 +34,29 @@ rel_dict = {r:i for i,r in enumerate(loadmat(rel_mat)['predicate'])}
 word2idx = {'obj':obj_dict, 'rel':rel_dict}
 w2v = np.load(w2v_file).item()
 
-# Training data
-obj_probs = np.load(train_obj).item()
-rel_feats = np.load(train_rel).item()
+# CNN features and probabilities
+obj_train = { k:v['prob'] for k,v in np.load(train_obj).item().items() }
+obj_test  = { k:v['prob'] for k,v in np.load(test_obj).item().items()  }
+rel_train = { k:v['fc7']  for k,v in np.load(train_rel).item().items() }
+rel_test  = { k:v['fc7']  for k,v in np.load(test_rel).item().items()  }
 
+# Training data (triplets)
 mat_train = loadmat(train_mat)['annotation_train']
 D_train   = mat_to_triplets(mat_train, word2idx)
-Ds_train  = batch_triplets(D_train)
-
-# Test data
-obj_probs_ = np.load(test_obj).item()
-rel_feats_ = np.load(test_rel).item()
+Ds_train  = group_triplets(D_train).values()
 
 mat_test = loadmat(test_mat)['annotation_test']
 D_test   = mat_to_triplets(mat_test, word2idx)
-Ds_test  = batch_triplets(D_test)
-
-test_data = (Ds_test, obj_probs_, rel_feats_)
-
-
-save_file = 'data/models/vrd_weights_3.npy'
+Ds_test  = group_triplets(D_test).values()
+test_data = (Ds_test, obj_test, rel_test)
 
 # --------------------------------------------------------------------------------------------------
 # Run model
 
-model = Model(obj_probs, rel_feats, w2v, word2idx, learning_rate=1.0, lamb1=5e-3, max_iters=20, noise=1.0)
-#import ipdb; ipdb.set_trace()
-model.SGD(Ds_train, test_data, save_file=save_file)
+model = Model(obj_train, rel_train, D_train, w2v, word2idx,
+              learning_rate=0.05, lamb1=.01, lamb2=.005,
+              noise=1e-10, num_samples=500000, max_iters=20)
+
+if not os.path.exists(save_dir):
+    os.makedirs(save_dir)
+model.SGD(Ds_train, test_data, save_file=save_dir+'weights.npy', ablate=[])

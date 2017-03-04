@@ -75,7 +75,7 @@ if __name__ == '__main__':
             data_batcher = load_sg_batcher(**train_params)
             for db, data_batch in tqdm(enumerate(data_batcher)):
 
-                for b, (images, labels) in tqdm(enumerate(data_batch)):
+                for b, (images, labels, uids) in tqdm(enumerate(data_batch)):
                     feed_dict = {ground_truth: labels, images_var: images}
                     sess.run(train_op, feed_dict=feed_dict)
 
@@ -83,7 +83,7 @@ if __name__ == '__main__':
             test_batcher = load_sg_batcher(**test_params)
             accs = []
             for test_batch in test_batcher:
-                for images, labels in test_batch:
+                for images, labels, uids in test_batch:
                     feed_dict = {ground_truth: labels, images_var: images}
                     batch_acc = sess.run(accuracy, feed_dict=feed_dict)
                     accs.append(batch_acc)
