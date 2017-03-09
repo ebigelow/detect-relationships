@@ -9,48 +9,13 @@ This is an implementation of [Visual Relationship Detection with Language Priors
 
 
 
-# TODO new
-
-
-
-
-
-
-
-
-- visualize hits & misses in testing data
-
-
-x compute new means for VRD images
-x add TF summaries to training
-x add different training operations
-- train & test on VRD
-
-- try new K sampling method
-- run model on VRD
-
-
-
-- compute new VG image mean
-- check out VG data
-    * stratified sample smaller dataset
-    * IDEA: use a small sample of VG, then see if it works tested on VRD!
-- train on smaller dataset
-    * fix scene graph indexing -- 0 to 108,000
-
-
-
-
-
-
-
 
 
 # TODO newest
 
 basic stuff i need ASAP
 
-- check out the distribution for miniVG
+x check out the distribution for miniVG
 - retrain VRD (relabeled) & miniVG CNNs          --  ~15-30 hours
 - confusion matrices for new VRD/VG models   
 - visualize hits/misses
@@ -62,13 +27,8 @@ basic stuff i need ASAP
 - Results
 - Discussion
 
-
-
-
 48 hours    - monday
 4 days      - wednesday
-
-
 
 
 

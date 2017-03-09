@@ -1,9 +1,7 @@
 import inspect
 import os
-import time
 import numpy as np
 import tensorflow as tf
-import subprocess
 
 
 # From: https://www.tensorflow.org/get_started/summaries_and_tensorboard
@@ -130,14 +128,14 @@ class CustomVgg16:
         var = self.get_var(layer_name, 0, 'weights', train, init_shape)
         return var
 
-    def get_var(self, layer_name, idx, var_name, train, init_shape):
+    def get_var(self, layer_name, idx, var_name, train, init_shape, init_noise=0.1):
         if train:
             if layer_name in self.data_dict:
                 data = self.data_dict[layer_name][idx]
                 var = tf.Variable(data, name=var_name)
                 print '{}:{}/{} loaded from npy'.format(layer_name, idx, var_name)
             else:
-                var = tf.Variable(tf.truncated_normal(init_shape, 0.01, 0.1), name=var_name)
+                var = tf.Variable(tf.truncated_normal(init_shape, 0.0, init_noise), name=var_name)
                 print '{}:{}/{} randomly initialized'.format(layer_name, idx, var_name)
         else:
             data = self.data_dict[layer_name][idx]
@@ -181,6 +179,7 @@ class CustomVgg16:
             data_dict[names[i]][idxs[i]] = var_out[i]
 
         np.save(save_path, data_dict)
+        print '\nFile saved to: ' + save_path + '\n'
 
 
     def get_train_op(self, optimizer='gradient', opt_params={}):

@@ -4,6 +4,11 @@ import scipy.io as spio
 from scipy.ndimage import imread
 from scipy.misc import imresize
 from collections import defaultdict
+from tqdm import trange
+
+
+def flatten(ls):
+    return [i for sl in ls for i in sl]
 
 
 
@@ -115,6 +120,70 @@ def _todict(matobj):
 # ---------------------------------------------------------------------------------------------------------
 # VRD - .mat files to model data
 
+
+
+def get_data_mini(mat_data, obj_dict, rel_dict, img_dir,
+                  mean_file='mean.npy', mini_file='/home/eric/data/mini/vrd2mini.npy'):
+    obj_data = []
+    rel_data = []
+
+    vrd2mini = np.load(mini_file).item()
+    n_mini = max(vrd2mini['obj'].values()) + 1  # 96
+    k_mini = max(vrd2mini['rel'].values()) + 1  # 40
+    # import ipdb; ipdb.set_trace()
+
+    for datum in mat_data:
+        # Skip images with no relationship data present -- there are some
+        if not hasattr(datum, 'relationship'):
+            #print 'skipping image {}, no relationship'.format(img_dir + datum.filename)
+            continue
+
+        img_rels = datum.relationship
+        if not hasattr(img_rels, '__getitem__'):
+            if not all(i in dir(img_rels) for i in ['objBox', 'phrase', 'subBox']):
+                print 'skipping relation, dir contains:', [_ for _ in dir(img_rels) if '_' not in _]
+                continue
+            img_rels = [img_rels]
+
+        # Swap RGB channels to BGR
+        rgb = imread(img_dir + datum.filename)
+        bgr = rgb[:,:,::-1]
+
+        for rel in img_rels:
+            # ('subject', 'verb', 'object')
+            s,v,o = rel.phrase
+            i,j,k = (obj_dict[s], obj_dict[o], rel_dict[v])
+
+            if (i in vrd2mini['obj']) and (j in vrd2mini['obj']) and (k in vrd2mini['rel']):
+                i_ = vrd2mini['obj'][i]
+                j_ = vrd2mini['obj'][j]
+                k_ = vrd2mini['rel'][k]
+
+                # Get unique id (uid) for subject-verb-object triple
+                s_uid = (datum.filename, s, box_to_coords(*rel.subBox))
+                o_uid = (datum.filename, o, box_to_coords(*rel.objBox))
+                r_uid = objs2reluid_vrd(s_uid, o_uid)
+
+                # UID format: (img_filename, label_word, bbox_coordinates)
+                s_img = square_crop(bgr, 224, *s_uid[2]) - np.load(mean_file)
+                o_img = square_crop(bgr, 224, *o_uid[2]) - np.load(mean_file)
+                r_img = square_crop(bgr, 224, *r_uid[2]) - np.load(mean_file)
+
+                # One-hot label vectors
+                s_label = np.zeros((n_mini));  s_label[i_] = 1
+                o_label = np.zeros((n_mini));  o_label[j_] = 1
+                v_label = np.zeros((k_mini));   v_label[k_] = 1
+
+                # Data format: (img, label, uid)
+                obj_data.append((s_img, s_label, s_uid))
+                obj_data.append((o_img, o_label, o_uid))
+                rel_data.append((r_img, v_label, r_uid))
+
+    return {'obj': list(obj_data), 'rel': list(rel_data)}
+
+
+
+
 def get_data(mat_data, obj_dict, rel_dict, img_dir, mean_file='mean.npy'):
     obj_data = []
     rel_data = []
@@ -161,29 +230,30 @@ def get_data(mat_data, obj_dict, rel_dict, img_dir, mean_file='mean.npy'):
             obj_data.append((o_img, o_label, o_uid))
             rel_data.append((r_img, v_label, r_uid))
 
-    return list(obj_data), list(rel_data)
+    return {'obj': list(obj_data), 'rel': list(rel_data)}
 
 
 def load_vrd_batcher(mat_path, obj_list_path, rel_list_path,
-                     batch_size=10, data_epochs=20, which_net='objnet',
+                     batch_size=10, data_epochs=20, which_net='obj',
                      img_dir='data/vrd/images/train/', mean_file='mean.npy'):
+    """
+    In this case, we load images in get_data, then we batch & tensorify in batchify_data
+
+    """
     obj_dict = {r:i for i,r in enumerate(loadmat(obj_list_path)['objectListN'])}
     rel_dict = {r:i for i,r in enumerate(loadmat(rel_list_path)['predicate'])}
 
     mat = loadmat(mat_path)[mat_path.split('/')[-1].split('.')[0]]
 
     batch_len = np.ceil(float(len(mat)) / data_epochs).astype(int)
-    for e in range(data_epochs):
-        meta_batch_data = mat[e*batch_len : (e+1)*batch_len]
+    for e in trange(data_epochs):
+        mat_batch = mat[e*batch_len : (e+1)*batch_len]
         # obj_test, rel_test = get_data(a_test, obj_dict, rel_dict, 'data/vrd/images/test/')
-        obj_meta, rel_meta = get_data(meta_batch_data, obj_dict, rel_dict, img_dir, mean_file)
+        vrd_data = get_data_mini(mat_batch, obj_dict, rel_dict, img_dir, mean_file)
 
-        if which_net == 'objnet':
-            yield batchify_data(obj_meta, batch_size)
-        else:
-            yield batchify_data(rel_meta, batch_size)
+        yield batchify_data2(vrd_data[which_net], batch_size)
 
-def batchify_data(data, batch_size):
+def batchify_data2(data, batch_size):
     """
     Split a list of images and labels into batches, then
       merge into tensors with first dimension `batch_size`.
@@ -248,12 +318,12 @@ def mat_to_triplets(mat_data, word2idx):
 
         for r in img_rels:
             s,v,o  = r.phrase
-            sub_id = (datum.filename, s, box_to_coords(*r.subBox))
-            obj_id = (datum.filename, o, box_to_coords(*r.objBox))
+            sub_id = (datum.filename, box_to_coords(*r.subBox), s)
+            obj_id = (datum.filename, box_to_coords(*r.objBox), o)
 
             i = word2idx['obj'][s]
             j = word2idx['obj'][o]
-            k = word2idx['rel'][v]
+            k = word2idx['rel'][v]      # different uid format here
             R = (i,j,k)
             D.append((R, sub_id, obj_id))
     return D
@@ -271,7 +341,7 @@ def group_triplets(D):
 # VG - scene graphs to cnn training data
 
 import sys
-sys.path.append('/home/eric/lib/visual_genome_python_driver/')
+sys.path.append('/home/eric/lib/visual_genome_python_driver_eric/')
 sys.path.append('/Users/eric/code/visual_genome_python_driver/')
 import src.local as vg
 
@@ -298,29 +368,26 @@ def sg_indexes(scene_graphs, label_dict):
                 sg.objects.remove(o)
             else:
                 o.index = oind
+
     return scene_graphs
 
 def load_sg_batcher(data_dir, data_id_dir, label_dict, img_mean,
                     start_idx=0, end_idx=-1, batch_size=10, data_epochs=20,
-                    which_net='objnet', output_size=100, img_dir='data/vg/images/'):
+                    which_net='obj', output_size=100, img_dir='data/vg/images/'):
 
-    #n, k = (len(label_dict['obj']), len(label_dict['rel']))
-    N = end_idx - start_idx
-    batch_len = np.ceil(float(N) / data_epochs).astype(int)
+    batch_len = np.ceil(108000.0 / data_epochs).astype(int)
+    for e in trange(data_epochs):
 
-    for e in range(data_epochs):
-        #if e % (data_epochs / 20) == 0: print 'data batch: {}'.format(e)
         scene_graphs = vg.GetSceneGraphs(e, e+batch_len, data_dir, data_id_dir)
         scene_graphs = rel_coords(scene_graphs)
         #scene_graphs = sg_indexes(scene_graphs, label_dict)
-        obj_meta, rel_meta = get_sg_data(scene_graphs, img_dir, label_dict)
 
-        if which_net == 'objnet':
-            yield batchify_sg_data(obj_meta, img_mean, batch_size, img_dir, output_size)
-        else:
-            yield batchify_sg_data(rel_meta, img_mean, batch_size, img_dir, output_size)
+        sg_data = get_sg_data_mini(scene_graphs, label_dict)
 
-def get_sg_data(scene_graphs, img_dir, label_dict):
+        yield batchify_data(sg_data[which_net], img_mean, batch_size, img_dir, output_size)
+
+
+def get_sg_data(scene_graphs, label_dict):
     obj_data = []
     rel_data = []
 
@@ -338,88 +405,111 @@ def get_sg_data(scene_graphs, img_dir, label_dict):
             o_coords = (o.x, o.y, o.width, o.height)
             r_coords = (r.x, r.y, r.width, r.height)
 
-            s_uid = ( fname,  s.names[0],  s_coords )
-            o_uid = ( fname,  o.names[0],  o_coords )
-            r_uid = frozenset((s_uid, o_uid))
+            s_uid = (fname,  s_coords, i)
+            o_uid = (fname,  o_coords, j)
+            r_uid = ((s_uid, o_uid), r_coords, k)
 
-            obj_data.append((s_coords, i, s_uid))
-            obj_data.append((o_coords, j, o_uid))
-            rel_data.append((r_coords, k, r_uid))
+            obj_data.append(s_uid)
+            obj_data.append(o_uid)
+            rel_data.append(r_uid)
 
-    return list(obj_data), list(rel_data)
+    return {'obj': list(obj_data), 'rel': list(rel_data)}
+
+
+
+def get_sg_data_mini(scene_graphs, label_dict, mini_file='/home/eric/data/mini/vrd2mini.npy'):
+
+    obj_data = []
+    rel_data = []
+
+    vrd2mini = np.load(mini_file).item()
+    vo = vrd2mini['obj']
+    vr = vrd2mini['rel']
+
+    for sg in scene_graphs:
+        fname = sg.image.url.split('/')[-1]
+
+        for r in sg.relationships:
+            s, o = (r.subject, r.object)
+
+            i = [label_dict['obj'][sy] for sy in s.synsets if sy in label_dict['obj']][0]
+            j = [label_dict['obj'][sy] for sy in o.synsets if sy in label_dict['obj']][0]
+            k = [label_dict['rel'][sy] for sy in r.synset  if sy in label_dict['rel']][0]
+
+            if (i in vo) and (j in vo) and (k in vr):
+                s_coords = (s.x, s.y, s.width, s.height)
+                o_coords = (o.x, o.y, o.width, o.height)
+                r_coords = (r.x, r.y, r.width, r.height)
+
+                s_uid = (fname,          s_coords, vo[i])
+                o_uid = (fname,          o_coords, vo[j])
+                r_uid = ((s_uid, o_uid), r_coords, vr[k])
+
+                obj_data.append(s_uid)
+                obj_data.append(o_uid)
+                rel_data.append(r_uid)
+
+    return {'obj': list(obj_data), 'rel': list(rel_data)}
+
+
 
 def one_hot(idx, shape):
     v = np.zeros(shape)
     v[idx] = 1
     return v
 
-def batchify_sg_data(data, mean, batch_size, img_dir, output_size=100, reshape_imgs=False):
+def load_mini_batcher(data, img_mean, batch_size=10, data_epochs=20, output_size=100,
+                      img_dir='~/data/mini/vrd/images/train/'):
+    batch_len = np.ceil(len(data) / data_epochs).astype(int)
+
+    for e in trange(data_epochs):
+        data_batch = data[batch_len * e : batch_len * (e+1)]
+        yield batchify_data(data_batch, img_mean, batch_size, img_dir, output_size)
+
+def batchify_data(data, mean, batch_size, img_dir,
+                  output_size=100, reshape_imgs=False):
     """
     Load images and concat them into batch_size -sized tensors.
 
+    In:
+        [  ( fname/reluid, coords, label ), . . .  ]
+    Out:
+        [  ( image_tensor, label_tensor, list_of_uids ), . . .  ]
     """
     n = np.ceil(float(len(data)) / batch_size).astype(int)
     batched_data = []
 
     for b in range(n):
-        batch_data = data[b*batch_size : (b + 1)*batch_size]
-        if len(batch_data) == 0: continue
+        batch_uids = data[b*batch_size : (b + 1)*batch_size]
+        if len(batch_uids) == 0: continue
 
-        batch_coords, batch_labs, batch_uids  = zip(*batch_data)
-        batch_imgs = []
+        batch_images = []
+        _, batch_coords, batch_labels = zip(*batch_uids)
 
-        for coords, label, uid in batch_data:
-            fname = uid[0] if (type(uid) != frozenset) else list(uid)[0][0]
+        for fname, coords, label in batch_uids:
+            if type(fname) not in [str, unicode]:
+                fname = list(fname)[0][0]
+
             rgb = imread(img_dir + fname)
+            if len(rgb.shape) == 2:
+                rgb = np.tile(rgb[..., None], [1,1,3])
             bgr = rgb[:,:,::-1]
 
             # Crop image to coordinates for this data
             x, y, w, h = coords
             rs = reshape_imgs
             crop = square_crop(bgr, 224, x, y, w, h, reshape=rs) - mean
-            batch_imgs.append(crop)
+
+            batch_images.append(crop)
 
         # Pad by repeating zeros
-        pad_len = batch_size - len(batch_data)
+        pad_len = batch_size - len(batch_uids)
         if pad_len > 0:
-            batch_imgs += tuple(np.zeros_like(batch_imgs[0]) for _ in range(pad_len))
-            batch_labs += tuple(np.zeros_like(batch_labs[0]) for _ in range(pad_len))
+            batch_images += tuple(np.zeros_like(batch_images[0]) for _ in range(pad_len))
+            batch_labels += tuple(np.zeros_like(batch_labels[0]) for _ in range(pad_len))
 
-        padded_imgs   = np.concatenate([i[np.newaxis, ...] for i in batch_imgs], axis=0)
-        padded_labels = np.vstack([ one_hot(i, output_size) for i in batch_labs ])
-        batched_data.append((padded_imgs, padded_labels, batch_uids))
+        padded_images = np.concatenate([ i[np.newaxis, ...] for i in batch_images ], axis=0)
+        padded_labels = np.vstack([ one_hot(i, output_size) for i in batch_labels ])
+        batched_data.append((padded_images, padded_labels, batch_uids))
 
     return batched_data
-
-
-
-
-
-# ---------------------------------------------------------------------------------------------------------
-# VG - scene graphs to model training data
-
-def convert_rel(rel, word2idx):
-    """
-    Converting training data `Relationship` instance to `<i,j,k>` format.
-
-    """
-    i = word2idx['obj'][rel.subject.names[0]]
-    j = word2idx['obj'][rel.object.names[0]]
-    k = word2idx['rel'][rel.predicate]
-    return i,j,k
-
-def sg_to_triplets(scene_graphs, word2idx):
-    """
-    Load a list of data triplets, one for each scene graph: (R, O1, O2)
-
-    """
-    D = []
-    for sg in scene_graphs:
-        img_id = sg.image.id
-        for rel in sg.relationships:
-            R = convert_rel(rel, word2idx)
-            O1 = rel.subject.id
-            O2 = rel.object.id
-            D.append((R, O1, O2))
-
-    return D

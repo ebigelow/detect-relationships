@@ -8,7 +8,7 @@ from tqdm import trange, tqdm
 # tf.app.flags.DEFINE_float('gpu_mem_fraction', 0.9, '')
 
 tf.app.flags.DEFINE_integer('output_size', 100, 'Size of final output layer')
-tf.app.flags.DEFINE_string('which_net', 'objnet', '')
+tf.app.flags.DEFINE_string('which_net', 'obj', '')
 
 tf.app.flags.DEFINE_string('init_path', 'data/models/vgg16.npy', 'Initial weights')
 tf.app.flags.DEFINE_string('save_dir',  'data/models/objnet/run1/', 'Save weights to this file')

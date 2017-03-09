@@ -30,7 +30,7 @@ LABEL_DICT="data/vg/json/vg_short/label_dict.npy"
 JSON_DIR="data/vg/json/vg_short/"
 JSON_ID_DIR="data/vg/json/vg_short/by-id/"
 
-python vg_train_cnn.py \
+python vg_train_cnn.py2 \
   --gpu_mem_fraction $GPU_FRACTION \
   --which_net $WHICH_NET \
   --init_path $INIT_PATH \
