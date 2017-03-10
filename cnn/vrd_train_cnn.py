@@ -1,7 +1,7 @@
 import tensorflow as tf
 import numpy as np
 import sys; sys.path.append('..')
-from utils import load_vrd_batcher
+from utils import load_vrd_batcher, tenumerate
 from vgg16 import CustomVgg16
 from tqdm import trange, tqdm
 
@@ -12,6 +12,7 @@ tf.app.flags.DEFINE_string('which_net', 'obj', '')
 
 tf.app.flags.DEFINE_string('init_path', 'data/models/vgg16.npy', 'Initial weights')
 tf.app.flags.DEFINE_string('save_dir',  'data/models/objnet/run1/', 'Save weights to this file')
+tf.app.flags.DEFINE_integer('save_freq',  500, 'Save weights every N data epochs.')
 tf.app.flags.DEFINE_integer('test_freq',  10, 'Compute test accuracy every N data epochs.')
 
 tf.app.flags.DEFINE_integer('batch_size',  10, '')
@@ -110,9 +111,9 @@ if __name__ == '__main__':
             train_batcher = get_data_batcher(FLAGS.train_mat, FLAGS.train_imgs, FLAGS.data_epochs)
             test_batcher =  get_data_batcher(FLAGS.test_mat,  FLAGS.test_imgs, 1000)
 
-            for db, train_batch in tqdm(enumerate(train_batcher)):
+            for db, train_batch in enumerate(train_batcher):
 
-                for b, (images, labels, uids) in tqdm(enumerate(train_batch)):
+                for b, (images, labels, uids) in tenumerate(train_batch):
                     train_feed = {ground_truth: labels,
                                   images_var: images}
 
@@ -121,18 +122,50 @@ if __name__ == '__main__':
                     train_writer.add_summary(summary, i)
 
                     if i % FLAGS.test_freq == 0:
-                        test_images, test_labels = get_test_images(test_batcher)
-                        test_feed = {ground_truth: test_labels, images_var: test_images}
+                        # test_images, test_labels = get_test_images(test_batcher)
+                        # test_feed = {ground_truth: test_labels, images_var: test_images}
+                        #
+                        # # Test on this training batch
+                        summary, acc_ = sess.run([merged, accuracy], feed_dict=train_feed)
+                        # train_writer.add_summary(summary, i)
+                        #
+                        # # Test on a batch from the test set
+                        # summary, test_acc = sess.run([merged, accuracy], feed_dict=test_feed)
+                        # test_writer.add_summary(summary, i)
+                        #
+                        # print('Step {}:{}-{}-{} | train: {}, test: {}'.format(i, e, db, b, train_acc, test_acc))
 
-                        # Test on this training batch
-                        summary, train_acc = sess.run([merged, accuracy], feed_dict=train_feed)
+                        test_acc = {'train': [], 'test': []}
+
+                        test1 = get_data_batcher(FLAGS.train_mat, FLAGS.train_imgs, FLAGS.data_epochs)
+                        test2 = get_data_batcher(FLAGS.test_mat,  FLAGS.test_imgs, FLAGS.data_epochs)
+
+                        Z = 5
+
+                        # Sample test data from train set
+                        for s in range(Z):
+                            test_batch = test1.next()
+                            for images, labels, uids in test_batch:
+                                summary, acc = sess.run([merged, accuracy], feed_dict=train_feed)
+                                test_acc['train'].append(acc)
                         train_writer.add_summary(summary, i)
 
-                        # Test on a batch from the test set
-                        summary, test_acc = sess.run([merged, accuracy], feed_dict=test_feed)
+                        # Sample test data from test set
+                        for s in range(Z):
+                            test_batch = test2.next()
+                            for images, labels, _ in test_batch:
+                                test_feed = {ground_truth : labels,  images_var : images}
+                                summary, acc = sess.run([merged, accuracy], feed_dict=test_feed)
+                                test_acc['test'].append(acc)
+                                break
                         test_writer.add_summary(summary, i)
 
-                        print('Step {}:{}-{}-{} | train: {}, test: {}'.format(i, e, db, b, train_acc, test_acc))
-                    i += 1
+                        test_acc['test'] = np.mean(test_acc['test'])
+                        test_acc['train'] = np.mean(test_acc['train'])
 
-            net.save_npy(sess, save_path=FLAGS.save_dir + 'vrd_trained_{}.npy'.format(e))
+                        print('Step {}:{}-{}-{}\t| train: {}\ttest: {}\tsimple: {}'.format(
+                                    i, e, db, b, test_acc['train'], test_acc['test'], acc_  ))
+
+                    if i % FLAGS.save_freq == 0:
+                        net.save_npy(sess, save_path=FLAGS.save_dir + 'weights_{}.npy'.format(e))
+                    i += 1

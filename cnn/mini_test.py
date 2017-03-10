@@ -56,7 +56,7 @@ if __name__ == '__main__':
                                                 feed_dict={images_var: images, ground_truth: labels})
                 for q in range(len(uids)):
                     D = {}
-                    if FLAGS.which_net == 'relnet':
+                    if FLAGS.which_net == 'rel':
                         D['fc7']   = b_fc7[q]
                     D['prob']  = b_prob[q]
                     D['label'] = labels[q].argmax()

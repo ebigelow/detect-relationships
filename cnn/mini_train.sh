@@ -23,15 +23,15 @@ MINI_DIR="/home/eric/data/mini/"
 MEAN_FILE="/home/eric/data/vrd/images/mean_train.npy"
 INIT_PATH="/home/eric/data/vgg16.npy"
 
-LEARNING_RATE=0.1
+LEARNING_RATE=1.0
 BATCH_SIZE=25
 META_EPOCHS=10
 DATA_EPOCHS=60
 
-TEST_FREQ=20
+TEST_FREQ=50
 TEST_SAMPLES=30
 
-REL_CAP=2000
+REL_CAP=99999999
 
 
 

@@ -1,6 +1,16 @@
 #!/bin/bash
 
-
+# Set up save directory
+setup_savedir()
+{
+  SAVE_DIR=$1
+  if [ -d "$SAVE_DIR" ]; then
+    rm -r $SAVE_DIR
+  fi
+  mkdir $SAVE_DIR
+  mkdir $SAVE_DIR"summaries"
+  mkdir $SAVE_DIR"out"
+}
 
 INIT_PATH="/home/eric/data/vgg16.npy"
 
@@ -25,28 +35,18 @@ LEARNING_RATE=0.1
 
 OUTPUT_SIZE=96
 WHICH_NET="obj"
-SAVE_DIR="/home/eric/data/mini/models/cnn/obj_vg1/"
+SAVE_DIR="/home/eric/data/mini/models/cnn/obj_vgOLD1/"
 
-if [ -d "$SAVE_DIR" ]; then
-  rm -r $SAVE_DIR
-fi
-mkdir $SAVE_DIR
-mkdir $SAVE_DIR"summaries"
-
+setup_savedir $SAVE_DIR
 python vg_train_cnn2.py --output_size $OUTPUT_SIZE --which_net $WHICH_NET --save_dir $SAVE_DIR --init_path $INIT_PATH --learning_rate $LEARNING_RATE --batch_size $BATCH_SIZE --data_epochs $DATA_EPOCHS --meta_epochs $META_EPOCHS --test_freq $TEST_FREQ
 
 
-OUTPUT_SIZE=40
-WHICH_NET="rel"
-SAVE_DIR="/home/eric/data/mini/models/cnn/rel_vg1/"
-
-if [ -d "$SAVE_DIR" ]; then
-  rm -r $SAVE_DIR
-fi
-mkdir $SAVE_DIR
-mkdir $SAVE_DIR"summaries"
-
-python vg_train_cnn2.py --output_size $OUTPUT_SIZE --which_net $WHICH_NET --save_dir $SAVE_DIR --init_path $INIT_PATH --learning_rate $LEARNING_RATE --batch_size $BATCH_SIZE --data_epochs $DATA_EPOCHS --meta_epochs $META_EPOCHS --test_freq $TEST_FREQ
+# OUTPUT_SIZE=40
+# WHICH_NET="rel"
+# SAVE_DIR="/home/eric/data/mini/models/cnn/rel_vg1/"
+#
+# setup_savedir $SAVE_DIR
+# python vg_train_cnn2.py --output_size $OUTPUT_SIZE --which_net $WHICH_NET --save_dir $SAVE_DIR --init_path $INIT_PATH --learning_rate $LEARNING_RATE --batch_size $BATCH_SIZE --data_epochs $DATA_EPOCHS --meta_epochs $META_EPOCHS --test_freq $TEST_FREQ
 
 
 

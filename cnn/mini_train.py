@@ -62,8 +62,16 @@ def tenumerate(ls):
 
 
 def sample_data(data, num_samples):
-    idxs = np.random.choice(range(len(data)), num_samples, replace=False)
-    return [data[i] for i in idxs]
+    # Collect dictionary indexing by filename
+    D = defaultdict(lambda: list())
+    for d in data:
+        fname = d[0] if type(d[0]) in [str, unicode] else list(d[0])[0][0]
+        D[fname].append(d)
+
+    # Sample `num_samples` images
+    keys = np.random.choice(D.keys(), num_samples, replace=False)
+    S = [d for k in keys for d in D[k]]
+    return S
 
 def cap_data(data, cap=2000):
     """
@@ -142,10 +150,10 @@ if __name__ == '__main__':
         test_writer = tf.summary.FileWriter(FLAGS.save_dir + 'summaries/test')
 
         for e in trange(FLAGS.meta_epochs):
-            D_train = {'obj' : cap_data(train_data['obj'], FLAGS.rel_cap),
-                       'rel' : cap_data(train_data['rel'], FLAGS.rel_cap) }
-            D_test  = {'obj' : cap_data(test_data['obj'], FLAGS.rel_cap/4),
-                       'rel' : cap_data(test_data['rel'], FLAGS.rel_cap/4) }
+            D_train = {'obj' : train_data['obj'],
+                       'rel' : train_data['rel'] }   # TODO: cap_data ???
+            D_test  = {'obj' : test_data['obj'],
+                       'rel' : test_data['rel'] }
 
             train_batcher = load_batcher(D_train, FLAGS.train_imgs)
 

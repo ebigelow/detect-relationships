@@ -135,7 +135,7 @@ class CustomVgg16:
                 var = tf.Variable(data, name=var_name)
                 print '{}:{}/{} loaded from npy'.format(layer_name, idx, var_name)
             else:
-                var = tf.Variable(tf.truncated_normal(init_shape, 0.0, init_noise), name=var_name)
+                var = tf.Variable(tf.truncated_normal(init_shape, 0.01, init_noise), name=var_name)
                 print '{}:{}/{} randomly initialized'.format(layer_name, idx, var_name)
         else:
             data = self.data_dict[layer_name][idx]

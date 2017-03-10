@@ -4,7 +4,7 @@ import itertools
 from numpy.random import randint, random
 from scipy.spatial.distance import cosine
 from tqdm import tqdm, trange
-
+from utils import convert_coords
 
 
 def cap_weight(M, cap=1.0):
@@ -52,7 +52,7 @@ class Model:
     obj_probs : obj_probs[obj_uid] = (100,) final layer cnn output
     rel_feats : rel_feats[rel_uid] = (4096,) fc7 feature (PRESUMABLY this was used . . .)
 
-    num_samples : number of random R samples to compute for equation 4
+    K_samples : number of random R samples to compute for equation 4 (K)
     noise : weight initialization variance (gaussian)
     lamb1 : weight of eq 5 in eq 7
     lamb2 : weight of eq 4 in eq 7
@@ -72,7 +72,7 @@ class Model:
     """
     def __init__(self, obj_probs, rel_feats, D_samples, w2v, word2idx,
                  dataset='vrd', noise=0.05, learning_rate=1.0, max_iters=20,
-                 num_samples=500000, lamb1=0.05, lamb2=0.001):
+                 K_samples=500000, lamb1=0.05, lamb2=0.001):
         self.obj_probs     = obj_probs
         self.rel_feats     = rel_feats
         self.w2v           = w2v
@@ -82,7 +82,7 @@ class Model:
         self.noise         = noise
         self.learning_rate = learning_rate
         self.max_iters     = max_iters
-        self.num_samples   = num_samples
+        self.K_samples   = K_samples
         self.lamb1         = lamb1
         self.lamb2         = lamb2
         self.dataset       = dataset
@@ -108,7 +108,7 @@ class Model:
                                   'noise'         : self.noise,
                                   'learning_rate' : self.learning_rate,
                                   'max_iters'     : self.max_iters,
-                                  'num_samples'   : self.num_samples,
+                                  'K_samples'     : self.K_samples,
                                   'lamb1'         : self.lamb1,
                                   'lamb2'         : self.lamb2     }  }
         np.save(filename, data_dict)
@@ -215,7 +215,7 @@ class Model:
 
         """
         i,j,k = R
-        rel_uid = self.objs2reluid(O1, O2)
+        rel_uid = (frozenset([O1, O2]), convert_coords(O1[1], O2[1]), k)
 
         P_i = self.obj_probs[O1][i]
         P_j = self.obj_probs[O2][j]
@@ -233,18 +233,18 @@ class Model:
 
         return P_i * P_j * P_k
 
-    def V_full(self, O1, O2):
-        rel_uid = self.objs2reluid(O1, O2)
-
-        P_I = self.obj_probs[O1]
-        P_J = self.obj_probs[O2]
-
-        cnn = self.rel_feats[rel_uid]
-        P_K = np.dot(self.Z, cnn) + self.s.flatten()
-
-        P_ij  = np.outer(P_I, P_J)
-        P_ijk = np.tensordot(P_ij, P_K, axes=0)
-        return P_ijk
+    # def V_full(self, O1, O2):
+    #     rel_uid = self.objs2reluid(O1, O2)
+    #
+    #     P_I = self.obj_probs[O1]
+    #     P_J = self.obj_probs[O2]
+    #
+    #     cnn = self.rel_feats[rel_uid]
+    #     P_K = np.dot(self.Z, cnn) + self.s.flatten()
+    #
+    #     P_ij  = np.outer(P_I, P_J)
+    #     P_ijk = np.tensordot(P_ij, P_K, axes=0)
+    #     return P_ijk
 
     def predict_preds(self, R, O1, O2, topn=20):
         """
@@ -372,7 +372,7 @@ class Model:
         w2v   = self.w2v['obj']
         i,j,k = R
 
-        for R_2, O1_2, O2_2 in D:
+        for R_2, O1_2, O2_2, _ in D:
             i_2,j_2,k_2 = R_2
             if 1 + f(R_2) - f(R) > 0:
                 W[k]   -= lr * self.lamb1 * np.concatenate((w2v[i], w2v[j]))
@@ -387,7 +387,7 @@ class Model:
         w2v   = self.w2v['obj']
         i,j,k = R
 
-        D_ = [(R_,O1_,O2_) for R_,O1_,O2_ in D if (R_ != R) or (O1_ != O1 or O2_ != O2)]
+        D_ = [(R_,O1_,O2_) for R_,O1_,O2_,_ in D if (R_ != R) or (O1_ != O1 or O2_ != O2)]
         if D_:
             R_,O1_,O2_ = min(D_, key=lambda (r_,o1_,o2_): -V(r_,o1_,o2_) * f(r_))
             i_,j_,k_ = R_
@@ -406,7 +406,7 @@ class Model:
         Z, s  = (self.Z, self.s)
         i,j,k = R
 
-        D_ = [(R_,O1_,O2_) for R_,O1_,O2_ in D if (R_ != R) and (O1_ != O1 or O2_ != O2)]
+        D_ = [(R_,O1_,O2_) for R_,O1_,O2_,_ in D if (R_ != R) and (O1_ != O1 or O2_ != O2)]
         if D_:
             R_,O1_,O2_ = min(D_, key=lambda (r_,o1_,o2_): -V(r_,o1_,o2_) * f(r_))
             i_,j_,k_ = R_
@@ -424,7 +424,7 @@ class Model:
 
     def sample_R_pairs(self, triplets):
         # TODO other possibility is that we sample pairs in same image only
-        m = self.num_samples
+        m = self.K_samples
         samples = np.random.randint(0, len(triplets), m*2)
         R_samples = [triplets[s][0] for s in samples]
         self.R_pairs = zip(R_samples[:m], R_samples[m:])
@@ -454,7 +454,7 @@ class Model:
             G += f_ ** 2.  / d_
 
         # Compute mean(G) over [1/10] initial set of samples
-        Ns = self.num_samples
+        Ns = self.K_samples
         G_avg = G / Ns
 
         print 'Computing Mean for K\n'
@@ -476,7 +476,8 @@ class Model:
             W[k2] += step * (G - G_avg) * dG2 * (2. / Ns)
         return W
 
-    def SGD(self, Ds, test_data=None, save_file='data/models/vrd_weights.npy', recall_topn=1, ablate=[]):
+    def SGD(self, Ds, test_data=None, recall_topn=1, ablate=[],
+            save_file='data/models/vrd_weights.npy'):
         """
         Perform SGD over eqs 4 (K), 5 (L), 6 (C)
 
@@ -493,7 +494,7 @@ class Model:
 
             for D in tshuffle(Ds):
                 W, b, Z, s = (self.W, self.b, self.Z, self.s)
-                for R, O1, O2 in tshuffle(D):
+                for R, O1, O2, _ in tshuffle(D):
                     if 'L' not in ablate:
                         dW, db = self.update_dLdW(D, R, lr)                  # dL / dW
                         W += dW; b += db
@@ -539,7 +540,7 @@ class Model:
         """
         # import ipdb; ipdb.set_trace()
         #R_rand = lambda: (randint(self.n), randint(self.n), randint(self.k))
-        #R_samples = ((R_rand(), R_rand()) for n in range(self.num_samples))
+        #R_samples = ((R_rand(), R_rand()) for n in range(self.K_samples))
         R_dists = [self.d(R1, R2) for R1, R2 in self.R_pairs]
         return np.var(R_dists)
 
@@ -561,7 +562,7 @@ class Model:
         # import ipdb; ipdb.set_trace()
         V,f = (self.V, self.f)
         C = 0.0
-        for R, O1, O2 in D:
+        for R, O1, O2, _ in D:
             c_max = max([ V(R_,O1_,O2_) * f(R_) for R_,O1_,O2_ in D
                                                 if (R_ != R) and (O1_ != O1 or O2_ != O2) ])
             c = V(R,O1,O2) * f(R)

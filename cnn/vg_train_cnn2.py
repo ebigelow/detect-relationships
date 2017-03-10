@@ -10,6 +10,7 @@ tf.app.flags.DEFINE_string('which_net', 'obj', '')
 
 tf.app.flags.DEFINE_string('init_path', 'data/models/vgg16.npy', 'Initial weights')
 tf.app.flags.DEFINE_string('save_dir',  'data/mini/models/cnn/objnet_vg1/', 'Save weights to this file')
+tf.app.flags.DEFINE_integer('save_freq',  500, 'Save weights every N data epochs.')
 tf.app.flags.DEFINE_integer('test_freq',  20, 'Compute test accuracy every N data epochs.')
 
 tf.app.flags.DEFINE_integer('batch_size',  25, '')
@@ -56,20 +57,9 @@ def get_test_images(test_batcher):
 if __name__ == '__main__':
 
 
-    train_params = {
-        'data_dir':    FLAGS.json_dir,
-        'data_id_dir': FLAGS.json_dir + 'by-id/',
-        'start_idx':   0,
-        'end_idx':     -1,
-        'label_dict':  np.load(FLAGS.label_dict).item(),
-        'batch_size':  FLAGS.batch_size,
-        'data_epochs': FLAGS.data_epochs,
-        'which_net':   FLAGS.which_net,
-        'output_size': FLAGS.output_size,
-        'img_dir':     FLAGS.img_dir,
-        'img_mean':    np.load(FLAGS.mean_file)
-    }
 
+    label_dict = np.load(FLAGS.label_dict).item()
+    img_mean = np.load(FLAGS.mean_file)
 
     # Optimizer parameters
     optimizer = FLAGS.optimizer.lower()
@@ -105,7 +95,6 @@ if __name__ == '__main__':
     accuracy = net.get_accuracy(ground_truth)
     merged = tf.summary.merge_all()
 
-
     i = 0
     init_op = tf.global_variables_initializer()
 
@@ -116,7 +105,9 @@ if __name__ == '__main__':
 
         for e in trange(FLAGS.meta_epochs):
 
-            data_batcher = load_sg_batcher(**train_params)
+            data_batcher = load_sg_batcher(FLAGS.json_dir, FLAGS.json_dir+'by-id/',
+                label_dict, img_mean, 0, -1, FLAGS.batch_size, FLAGS.data_epochs,
+                FLAGS.which_net, FLAGS.output_size, FLAGS.img_dir)
 
             for db, train_batch in tqdm(enumerate(data_batcher)):
 
@@ -129,10 +120,44 @@ if __name__ == '__main__':
                     train_writer.add_summary(summary, i)
 
                     if i % FLAGS.test_freq == 0:
-                        # Test on this training batch
-                        summary, train_acc = sess.run([merged, accuracy], feed_dict=train_feed)
-                        train_writer.add_summary(summary, i)
-                        print('Step {}:{}-{}-{} | train: {}'.format(i, e, db, b, train_acc))
-                    i += 1
 
-            net.save_npy(sess, save_path=FLAGS.save_dir + 'vrd_trained_{}.npy'.format(e))
+                        test_acc = {'train': [], 'test': [0.0]}
+
+                        test1 = load_sg_batcher(FLAGS.json_dir, FLAGS.json_dir+'by-id/',
+                            label_dict, img_mean, 0, -1, FLAGS.batch_size, FLAGS.data_epochs,
+                            FLAGS.which_net, FLAGS.output_size, FLAGS.img_dir)
+                        # test2 = get_data_batcher(FLAGS.test_mat,  FLAGS.test_imgs, FLAGS.data_epochs)
+
+                        Z = 5
+
+                        # Sample Z data from train set
+                        for s in range(Z):
+                            test_batch = test1.next()
+                            for images, labels, uids in test_batch:
+                                summary, acc = sess.run([merged, accuracy], feed_dict=train_feed)
+                                test_acc['train'].append(acc)
+
+                        train_writer.add_summary(summary, i)
+
+                        # # Sample Z data from test set
+                        # for s in rn:
+                        #     if s in samples:
+                        #         test_batch = test2.next()
+                        #         for images, labels, _ in test_batch:
+                        #             test_feed = {ground_truth : labels,  images_var : images}
+                        #             summary, acc = sess.run([merged, accuracy], feed_dict=test_feed)
+                        #             test_acc['test'].append(acc)
+                        #             break
+                        #     else:
+                        #         continue
+                        # test_writer.add_summary(summary, i)
+                        #
+                        # test_acc['test']  = np.mean(test_acc['test'])
+                        test_acc['train'] = np.mean(test_acc['train'])
+
+                        print('Step {}:{}-{}-{}\t | train: {}\ttest: {}'.format(
+                                    i, e, db, b, test_acc['train'], test_acc['test']))
+
+                    if i % FLAGS.save_freq == 0:
+                        net.save_npy(sess, save_path=FLAGS.save_dir + 'weights_{}.npy'.format(i))
+                    i += 1

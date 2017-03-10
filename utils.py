@@ -4,7 +4,7 @@ import scipy.io as spio
 from scipy.ndimage import imread
 from scipy.misc import imresize
 from collections import defaultdict
-from tqdm import trange
+from tqdm import trange, tqdm
 
 
 def flatten(ls):
@@ -76,6 +76,15 @@ def rel_coords(scene_graphs):
             r.height = max(s.y + s.height, o.y + o.height) - r.y
 
     return scene_graphs
+
+def convert_coords(sc, oc):
+    sx, sy, sw, sh = sc
+    ox, oy, ow, oh = oc
+    rx = min(sx, ox)
+    ry = min(sy, oy)
+    rw = max(sx + sw, ox + ow) - rx
+    rh = max(sy + sh, oy + oh) - ry
+    return (rx, ry, rw, rh)
 
 
 # ---------------------------------------------------------------------------------------------------------
@@ -293,10 +302,10 @@ def objs2reluid_vrd(O1, O2):
     ymin, ymax, xmin, xmax = (min(y1, y2), max(y1+h1, y2+h2),
                               min(x1, x2), max(x1+w1, x2+w2))
     h, w = (ymax-ymin, xmax-xmin)
-    y, x = (ymin    , xmin)
+    y, x = (ymin, xmin)
     coords = (x, y, w, h)
 
-    return (fname, frozenset([o1,o2]), coords)
+    return (frozenset([o1,o2]), coords)
 
 
 # ---------------------------------------------------------------------------------------------------------
@@ -335,6 +344,48 @@ def group_triplets(D):
         fname = d[1][0]
         E[fname].append(d)
     return E
+
+
+def mat_to_triplets_mini(mat_data, word2idx,
+                         mini_file='/home/eric/data/mini/vrd2mini.npy'):
+    """Convert matrix data to triplets."""
+    D = []
+
+    for datum in mat_data:
+        fname = datum.filename
+
+        if not hasattr(datum, 'relationship'):
+            continue
+        img_rels = datum.relationship
+        if not hasattr(img_rels, '__getitem__'):
+            if not all(i in dir(img_rels) for i in ['objBox', 'phrase', 'subBox']):
+                print 'skipping relation, dir contains:', [_ for _ in dir(img_rels) if '_' not in _]
+                continue
+            img_rels = [img_rels]
+
+        for r in img_rels:
+            s,v,o  = r.phrase
+
+            i = word2idx['obj'][s]
+            j = word2idx['obj'][o]
+            k = word2idx['rel'][v]
+
+            V = np.load(mini_file).item()
+            vo = V['obj']
+            vr = V['rel']
+
+            if all((i in vo, j in vo, k in vr)):
+                i_, j_, k_ = (vo[i], vo[j], vr[k])
+                R = (i_,j_,k_)
+
+                sc = box_to_coords(*r.subBox)
+                oc = box_to_coords(*r.objBox)
+                sub_uid = (fname, sc, i)
+                obj_uid = (fname, oc, j)
+                rel_uid = (fname, convert_coords(sc, oc), k)
+
+                D.append((R, sub_uid, obj_uid, rel_uid))
+    return D
 
 
 # ---------------------------------------------------------------------------------------------------------
@@ -385,6 +436,10 @@ def load_sg_batcher(data_dir, data_id_dir, label_dict, img_mean,
         sg_data = get_sg_data_mini(scene_graphs, label_dict)
 
         yield batchify_data(sg_data[which_net], img_mean, batch_size, img_dir, output_size)
+
+
+def tenumerate(ls):
+    return enumerate(tqdm(ls))
 
 
 def get_sg_data(scene_graphs, label_dict):
