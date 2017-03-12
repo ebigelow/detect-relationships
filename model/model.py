@@ -58,8 +58,8 @@ class Model:
 
 
     """
-    def __init__(self, obj_probs, rel_feats, D_samples, w2v, word2idx,
-                 dataset='vrd', noise=0.05, learning_rate=1.0, max_iters=20,
+    def __init__(self, obj_probs, rel_feats, w2v, word2idx, D_samples=[],
+                 noise=0.05, learning_rate=1.0, max_iters=20,
                  K_samples=500000, lamb1=0.05, lamb2=0.001):
         self.obj_probs     = obj_probs
         self.rel_feats     = rel_feats
@@ -70,13 +70,13 @@ class Model:
         self.noise         = noise
         self.learning_rate = learning_rate
         self.max_iters     = max_iters
-        self.K_samples   = K_samples
+        self.K_samples     = K_samples
         self.lamb1         = lamb1
         self.lamb2         = lamb2
-        self.dataset       = dataset
         self.init_weights()
         self.init_tabular()
-        self.sample_R_pairs(D_samples)
+        if D_samples:
+            self.sample_R_pairs(D_samples)
 
     def init_weights(self):
         nfeats = self.rel_feats.values()[0].shape[0]
@@ -89,8 +89,7 @@ class Model:
     def save_weights(self, filename):
         data_dict = { 'W': self.W, 'b': self.b,
                       'Z': self.Z, 's': self.s,
-                      'params': { 'dataset'       : self.dataset,
-                                  'n'             : self.n,
+                      'params': { 'n'             : self.n,
                                   'k'             : self.k,
                                   'noise'         : self.noise,
                                   'learning_rate' : self.learning_rate,
@@ -559,10 +558,12 @@ class Model:
         V,f = (self.V, self.f)
         C = 0.0
         for R, O1, O2 in D:
-            c_max = max([ V(R_,O1_,O2_) * f(R_) for R_,O1_,O2_ in D
-                                                if (R_ != R) and (O1_ != O1 or O2_ != O2) ])
-            c = V(R,O1,O2) * f(R)
-            C += max(0,  1 - c + c_max)
+            c_ = [ V(R_,O1_,O2_) * f(R_) for R_,O1_,O2_ in D
+                                         if (R_ != R) and (O1_ != O1 or O2_ != O2) ]
+            if c_:
+                c_max = max(c_)
+                c = V(R,O1,O2) * f(R)
+                C += max(0,  1 - c + c_max)
         return C
 
     def loss(self, D):

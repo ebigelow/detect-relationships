@@ -184,7 +184,7 @@ def get_data_mini(mat_data, obj_dict, rel_dict, img_dir,
 
                 s_uid = (fn, sc, i_)
                 o_uid = (fn, oc, j_)
-                r_uid = (frozenset([s_uid, o_uid]), rc, k_)
+                r_uid = ((s_uid, o_uid), rc, k_)
 
                 # UID format: (img_filename, label_word, bbox_coordinates)
                 s_img = square_crop(bgr, 224, *sc) - np.load(mean_file)
@@ -236,7 +236,7 @@ def get_trips_mini(mat_data, obj_dict, rel_dict,
 
                 s_uid = (fn, sc, i_)
                 o_uid = (fn, oc, j_)
-                r_uid = (frozenset([s_uid, o_uid]), rc, k_)
+                r_uid = ((s_uid, o_uid), rc, k_)
 
                 R = (i_, j_, k_)
                 data.append((R, s_uid, o_uid))
@@ -357,7 +357,14 @@ def objs2reluid_vrd(O1, O2):
     y, x = (ymin, xmin)
     coords = (x, y, w, h)
 
-    return (frozenset([o1,o2]), coords)
+    return ((o1,o2), coords)
+
+
+def ouid2ruid(O1, O2, k):
+    fname, o1, coords1 = O1
+    fname, o2, coords2 = O2
+    rcoords = convert_coords(coords1, coords2)
+    return ((o1,o2), rcoords, k)
 
 
 # ---------------------------------------------------------------------------------------------------------
@@ -397,11 +404,15 @@ def group_triplets(D):
         E[fname].append(d)
 
     E = {k:v for k,v in E.items()}
+
+    removes = []
     for fn in E.keys():
         if len(E[fn]) < 2:
             del E[fn]
-            print 'removed ' + fn
-    return E
+            removes.append(fn)
+            
+    print 'removed {} files in `utils.group_triplets`'.format(len(removes))
+    return E.values(), removes
 
 
 
@@ -531,14 +542,14 @@ def get_sg_data(scene_graphs, label_dict):
 
 
 
-def get_sg_data_mini(scene_graphs, label_dict, mini_file='/home/eric/data/mini/vrd2mini.npy'):
+def get_sg_data_mini(scene_graphs, label_dict, mini_file='/home/eric/data/mini/vg2mini.npy'):
 
     obj_data = []
     rel_data = []
 
-    vrd2mini = np.load(mini_file).item()
-    vo = vrd2mini['obj']
-    vr = vrd2mini['rel']
+    vg2mini = np.load(mini_file).item()
+    vo = vg2mini['obj']
+    vr = vg2mini['rel']
 
     for sg in scene_graphs:
         fname = sg.image.url.split('/')[-1]
