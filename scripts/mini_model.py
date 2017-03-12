@@ -8,7 +8,7 @@ from optparse import OptionParser
 
 
 # --------------------------------------------------------------------------------------------------
-# TODO currently we're just training/testing `model.py` on VRD data
+# TODOne currently we're just training/testing `model.py` on VRD data
 # TODOne save run metadata
 # TODOne mini word2vec
 

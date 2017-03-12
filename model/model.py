@@ -102,10 +102,9 @@ class Model:
 
     def load_weights(self, filename):
         data_dict = np.load(filename).item()
-        self.W = data_dict['W']
-        self.b = data_dict['b']
-        self.Z = data_dict['Z']
-        self.s = data_dict['s']
+        self.update(W=data_dict['W'], b=data_dict['b'],
+                    Z=data_dict['Z'], s=data_dict['s'])
+        
         self.__dict__.update(data_dict['params'])
         print 'numpy file loaded from: {}'.format(filename)
 
@@ -516,7 +515,9 @@ class Model:
             print '\tit {} | C:{}  L:{}  K:{}  \n  dCost: {} |  Time: {}'.format(epoch, C,L,K, C+L+K-prev_obj, tm()-t1)
             prev_obj = C + L + K
 
+            print 'Test Data'
             self.compute_accuracy_FINAL(Ds, test_data, topn=100, ntest=10000, thing=2)
+            print 'Training Data'
             self.compute_accuracy_FINAL(Ds, None,      topn=100, ntest=10000, thing=2)
 
 

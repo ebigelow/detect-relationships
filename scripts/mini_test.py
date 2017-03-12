@@ -1,16 +1,12 @@
 import numpy as np
-import os, sys; sys.path.append('..')
-from utils import loadmat, get_trips_mini, group_triplets, ruid2feats, ouid2ruid
-from model.model import Model
 from optparse import OptionParser
+import sys
+sys.path.append('..')
+
+from utils import ouid2ruid, ruid2feats
+from model.model import Model
 
 
-
-
-# --------------------------------------------------------------------------------------------------
-# TODO currently we're just training/testing `model.py` on VRD data
-# TODOne save run metadata
-# TODOne mini word2vec
 
 
 
@@ -37,74 +33,78 @@ parser.add_option("--max_iters",     default=20,     type="int")
 
 
 
-# TODO vrd-on-vg2/weights_2.npy
-# TODO vrd2/weights_0.npy
-
 
 
 if __name__ == '__main__':
 
     (O, args) = parser.parse_args()
 
-    # --------------------------------------------------------------------------------------------------
-    # Load data
-
-    obj_dict = {r:i for i,r in enumerate(loadmat(O.obj_mat)['objectListN'])}
-    rel_dict = {r:i for i,r in enumerate(loadmat(O.rel_mat)['predicate'])}
-
-    word2idx = {'obj':obj_dict, 'rel':rel_dict}
     w2v = np.load(O.w2v_file).item()
 
-    # CNN features and probabilities
-    obj_fn = lambda fn: O.objnet_dir + 'out/' + fn
-    rel_fn = lambda fn: O.relnet_dir + 'out/' + fn
-    # obj_train = { o[:2]:v['prob'] for o,v in np.load(obj_fn('vrd_train2.npy')).item().items() if o is not None }
-    # obj_test  = { o[:2]:v['prob'] for o,v in np.load(obj_fn('vrd_test2.npy')).item().items()  if o is not None }
-    # rel_train = { ruid2feats(r):v['fc7']  for r,v in np.load(rel_fn('vrd_train2.npy')).item().items() if r is not None }
-    # rel_test  = { ruid2feats(r):v['fc7']  for r,v in np.load(rel_fn('vrd_test2.npy')).item().items()  if r is not None }
-
-    # # VRD data (triplets)
-    # D_train = np.load('/home/eric/data/mini/vrd_train2_.npy').item()['rel']
-    # D_train = [((o[0][2], o[1][2], k), o[0], o[1]) for o, rc, k in list(D_train)]
-    # Ds_train  = group_triplets(D_train).values()
-    #
-    # D_test = np.load('/home/eric/data/mini/vrd_test2_.npy').item()['rel']
-    # D_test = [((o[0][2], o[1][2], k), o[0], o[1]) for o, rc, k in list(D_test)]
-    # Ds_test  = group_triplets(D_test).values()
-    # test_data = (Ds_test, obj_test, rel_test)
 
 
     # --------------------------------------------------------------------------------------------------
-    # VG data (triplets)
-    D_train = np.load('/home/eric/data/mini/vg_train.npy').item()['rel']
-    D_train = [((o[0][2], o[1][2], k), o[0], o[1]) for o, rc, k in list(D_train)]
-
-    D_test  = np.load('/home/eric/data/mini/vg_test.npy').item()['rel']
-    D_test  = [((o[0][2], o[1][2], k), o[0], o[1]) for o, rc, k in list(D_test)]
-    D_test  = group_triplets(D_test).values()
 
 
+    mini = '/home/eric/data/mini/'
+
+    obj_dir = mini + 'models/cnn2/obj_vrd1/out/'
+    rel_dir = mini + 'models/cnn2/rel_vrd1/out/'
+
+    vrd_on_vrd = mini + 'models/embed/vrd2/'
+    vrd_on_vg  = mini + 'models/embed/vrd-on-vg2/'
+    weights_vrd = vrd_on_vrd + 'weights_0.npy'
+    weights_vg  = vrd_on_vg  + 'weights_2.npy'
+
+
+    E = (
+        # (weight_file, save_file, obj_prob_file, rel_feat_file, D(data))
+        (weights_vrd, vrd_on_vrd+'out/vrd_train', obj_dir+'vrd_train2.npy', rel_dir+'vrd_train2.npy', mini+'vrd_train2_.npy' ),
+        (weights_vrd, vrd_on_vrd+'out/vrd_test',  obj_dir+'vrd_test2.npy',  rel_dir+'vrd_test2.npy',  mini+'vrd_test2_.npy'  ),
+        (weights_vrd, vrd_on_vrd+'out/vg_train',  obj_dir+'vg_train.npy',   rel_dir+'vg_train.npy',   mini+'vg_train_.npy'   ),
+        (weights_vrd, vrd_on_vrd+'out/vg_test',   obj_dir+'vg_test.npy',    rel_dir+'vg_test.npy',    mini+'vg_test_.npy'    ),
+        (weights_vg,  vrd_on_vg+'out/vrd_train',  obj_dir+'vrd_train2.npy', rel_dir+'vrd_train2.npy', mini+'vrd_train2_.npy' ),
+        (weights_vg,  vrd_on_vg+'out/vrd_test',   obj_dir+'vrd_test2.npy',  rel_dir+'vrd_test2.npy',  mini+'vrd_test2_.npy'  ),
+        (weights_vg,  vrd_on_vg+'out/vg_train',   obj_dir+'vg_train.npy',   rel_dir+'vg_train.npy',   mini+'vg_train_.npy'   ),
+        (weights_vg,  vrd_on_vg+'out/vg_test',    obj_dir+'vg_test.npy',    rel_dir+'vg_test.npy',    mini+'vg_test_.npy'    ),
+    )
 
 
 
     # --------------------------------------------------------------------------------------------------
     # Run model
 
-    model_dir = '/home/eric/data/mini/models/embed/vrd1/'
+    def predict(M, D, topn=1):
+        """
+        Recall @ k
 
-    M = Model(obj_probs_train, rel_feats_train, w2v, word2idx)
-    M.load_weights(model_dir + 'weights_2.npy')
+        output format:
+            ( GT_ruid, list_of_predicted_Rs ),  . . .
+        """
+        predicts = [(ouid2ruid(O1, O2, R[2]), M.predict_preds(R, O1, O2, topn))
+                    for R, O1, O2 in D]
+        hits = [int(gt[2] in preds) for gt, preds in predicts]
+        accuracy = np.mean(hits)
+        return predicts, accuracy
 
-    save_file = model_dir + 'test/vg_train.npy'
 
-    # Recall @ k
-    topn = 20
-    predicts = [(ouid2ruid(O1, O2), M.predict_preds(R, O1, O2, topn))
-                for R, O1, O2 in D_train]
+    for weight_file, save_file, obj_file, rel_file, D_file in E:
+        print 'Saving to file: ' + save_file
 
-    hits = [int(gt[2] in preds) for gt, preds in predicts]
-    accuracy = np.mean(hits)
-    print 'Accuracy on VG train: {}'.format(accuracy)
+        obj_probs  = { o[:2]:v['prob']         for o,v in np.load(obj_file).item().items()  if o is not None }
+        rel_feats  = { ruid2feats(r):v['fc7']  for r,v in np.load(rel_file).item().items()  if r is not None }
 
-    np.save(save_file, predicts)
-    print 'Saved to ' + save_file
+        M = Model(obj_probs, rel_feats, w2v, [])
+        M.load_weights(weight_file)
+
+        D = np.load(D_file).item()['rel']
+        D = [((o[0][2], o[1][2], k), o[0], o[1]) for o, rc, k in list(D)]
+
+        for topk in [1, 5, 10, 20]:
+            # predicts, accuracy = predict(M, D, topk)
+            accuracy = M.compute_accuracy2(D, topk)
+            print 'Recall @ {}: {}'.format(topk, accuracy)
+
+        # Save top 20 predictions to file
+        # predicts, _ = predict(M, D, 20)
+        # np.save(save_file, predicts)

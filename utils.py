@@ -361,10 +361,10 @@ def objs2reluid_vrd(O1, O2):
 
 
 def ouid2ruid(O1, O2, k):
-    fname, o1, coords1 = O1
-    fname, o2, coords2 = O2
+    _, coords1, _ = O1
+    _, coords2, _ = O2
     rcoords = convert_coords(coords1, coords2)
-    return ((o1,o2), rcoords, k)
+    return ((O1, O2), rcoords, k)
 
 
 # ---------------------------------------------------------------------------------------------------------
@@ -410,7 +410,7 @@ def group_triplets(D):
         if len(E[fn]) < 2:
             del E[fn]
             removes.append(fn)
-            
+
     print 'removed {} files in `utils.group_triplets`'.format(len(removes))
     return E.values(), removes
 
