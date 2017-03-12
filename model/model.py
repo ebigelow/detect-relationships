@@ -1,33 +1,16 @@
 
 import numpy as np
 import itertools
-from numpy.random import randint, random
+from numpy.random import random
 from scipy.spatial.distance import cosine
 from tqdm import tqdm, trange
-from utils import convert_coords
+from utils import convert_coords, ruid2feats
 
 
 def cap_weight(M, cap=1.0):
     m = abs(M).max()
     return (M / m) if (m > cap) else M
 
-
-def objs2reluid_vg(O1, O2):
-    return frozenset([O1, O2])
-
-def objs2reluid_vrd(O1, O2):
-    fname, o1, coords1 = O1
-    fname, o2, coords2 = O2
-
-    x1, y1, w1, h1 = coords1
-    x2, y2, w2, h2 = coords2
-    ymin, ymax, xmin, xmax = (min(y1, y2), max(y1+h1, y2+h2),
-                              min(x1, x2), max(x1+w1, x2+w2))
-    h, w = (ymax-ymin, xmax-xmin)
-    y, x = (ymin, xmin)
-    coords = (x, y, w, h)
-
-    return (fname, frozenset([o1,o2]), coords)
 
 def flatten(ls):
     return [i for subl in ls for i in subl]
@@ -40,6 +23,11 @@ def tshuffle(ls):
 
 import time
 tm = lambda: time.time()
+
+
+def get_ruid(O1, O2, k):
+    return((O1,O2), convert_coords(O1[1], O2[1]), k)
+
 
 
 class Model:
@@ -86,7 +74,6 @@ class Model:
         self.lamb1         = lamb1
         self.lamb2         = lamb2
         self.dataset       = dataset
-        self.objs2reluid   = objs2reluid_vg if dataset=='vg' else objs2reluid_vrd
         self.init_weights()
         self.init_tabular()
         self.sample_R_pairs(D_samples)
@@ -172,7 +159,7 @@ class Model:
         d_rel = self.f(R1) - self.f(R2)
         d_obj = self.w2v_dist(R1, R2)
         d = (d_rel ** 2) / d_obj
-        return d if (d > 0) else 1e-10
+        return d if (d > 1e-10) else 1e-10
 
     def f(self, R):
         """
@@ -215,26 +202,32 @@ class Model:
 
         """
         i,j,k = R
-        rel_uid = (frozenset([O1, O2]), convert_coords(O1[1], O2[1]), k)
+        ruid = get_ruid(O1, O2, k)
 
-        P_i = self.obj_probs[O1][i]
-        P_j = self.obj_probs[O2][j]
+        try:
+            P_i = self.obj_probs[O1[:2]][i]
+            P_j = self.obj_probs[O2[:2]][j]
+        except:
+            import ipdb; ipdb.set_trace()
 
         # V_dict keeps a table of previously computed values by input
-        key = rel_uid + (k,)
-        if key not in self.V_dict:
-            cnn = self.rel_feats[rel_uid]
+        if ruid not in self.V_dict:
+            rf = ruid2feats(ruid)
+            try:
+                cnn = self.rel_feats[rf]
+            except:
+                import ipdb; ipdb.set_trace()
             Z,s = (self.Z, self.s)
-            self.V_dict[key] = np.dot(Z[k], cnn) + s[k]
+            self.V_dict[ruid] = np.dot(Z[k], cnn) + s[k]
 
-        P_k = self.V_dict[key]
+        P_k = self.V_dict[ruid]
 
         if verbose: print 'V: i {}  j {}  k {}'.format(P_i, P_j, P_k)
 
         return P_i * P_j * P_k
 
     # def V_full(self, O1, O2):
-    #     rel_uid = self.objs2reluid(O1, O2)
+    #     rel_uid = self.ouid2ruid(O1, O2)
     #
     #     P_I = self.obj_probs[O1]
     #     P_J = self.obj_probs[O2]
@@ -372,7 +365,7 @@ class Model:
         w2v   = self.w2v['obj']
         i,j,k = R
 
-        for R_2, O1_2, O2_2, _ in D:
+        for R_2, O1_2, O2_2 in D:
             i_2,j_2,k_2 = R_2
             if 1 + f(R_2) - f(R) > 0:
                 W[k]   -= lr * self.lamb1 * np.concatenate((w2v[i], w2v[j]))
@@ -387,7 +380,7 @@ class Model:
         w2v   = self.w2v['obj']
         i,j,k = R
 
-        D_ = [(R_,O1_,O2_) for R_,O1_,O2_,_ in D if (R_ != R) or (O1_ != O1 or O2_ != O2)]
+        D_ = [(R_,O1_,O2_) for R_,O1_,O2_ in D if (R_ != R) or (O1_ != O1 or O2_ != O2)]
         if D_:
             R_,O1_,O2_ = min(D_, key=lambda (r_,o1_,o2_): -V(r_,o1_,o2_) * f(r_))
             i_,j_,k_ = R_
@@ -405,21 +398,23 @@ class Model:
         V, f  = (self.V, self.f)
         Z, s  = (self.Z, self.s)
         i,j,k = R
+        ruid = get_ruid(O1, O2, k)
+        rf = ruid2feats(ruid)
 
-        D_ = [(R_,O1_,O2_) for R_,O1_,O2_,_ in D if (R_ != R) and (O1_ != O1 or O2_ != O2)]
+        D_ = [(R_,O1_,O2_) for R_,O1_,O2_ in D if (R_ != R) and (O1_ != O1 or O2_ != O2)]
         if D_:
             R_,O1_,O2_ = min(D_, key=lambda (r_,o1_,o2_): -V(r_,o1_,o2_) * f(r_))
             i_,j_,k_ = R_
+            ruid_ = get_ruid(O1_, O2_, k_)
+            rf_ = ruid2feats(ruid_)
 
             cost = max(1. - V(R,O1,O2) * f(R) + V(R_,O1_,O2_) * f(R_), 0.)
             if cost > 0:
-                id_rel  = self.objs2reluid(O1, O2)
-                id_rel_ = self.objs2reluid(O1_, O2_)
 
-                Z[k]  += lr * obj_probs[O1][i]   * obj_probs[O2][j]   * rel_feats[id_rel]   * f(R)
-                s[k]  += lr * obj_probs[O1][i]   * obj_probs[O2][j]                         * f(R)
-                Z[k_] -= lr * obj_probs[O1_][i_] * obj_probs[O2_][j_] * rel_feats[id_rel_]  * f(R_)
-                s[k_] -= lr * obj_probs[O1_][i_] * obj_probs[O2_][j_]                       * f(R_)
+                Z[k]  += lr * obj_probs[O1[:2]][i]   * obj_probs[O2[:2]][j]   * rel_feats[rf]   * f(R)
+                s[k]  += lr * obj_probs[O1[:2]][i]   * obj_probs[O2[:2]][j]                     * f(R)
+                Z[k_] -= lr * obj_probs[O1_[:2]][i_] * obj_probs[O2_[:2]][j_] * rel_feats[rf_]  * f(R_)
+                s[k_] -= lr * obj_probs[O1_[:2]][i_] * obj_probs[O2_[:2]][j_]                   * f(R_)
         return Z, s
 
     def sample_R_pairs(self, triplets):
@@ -477,7 +472,7 @@ class Model:
         return W
 
     def SGD(self, Ds, test_data=None, recall_topn=1, ablate=[],
-            save_file='data/models/vrd_weights.npy'):
+            save_file='data/models/vrd_weights_{}.npy'):
         """
         Perform SGD over eqs 4 (K), 5 (L), 6 (C)
 
@@ -494,7 +489,7 @@ class Model:
 
             for D in tshuffle(Ds):
                 W, b, Z, s = (self.W, self.b, self.Z, self.s)
-                for R, O1, O2, _ in tshuffle(D):
+                for R, O1, O2 in tshuffle(D):
                     if 'L' not in ablate:
                         dW, db = self.update_dLdW(D, R, lr)                  # dL / dW
                         W += dW; b += db
@@ -509,12 +504,13 @@ class Model:
                 W = self.updateall_dKdW(lr)                             # dK / dW
                 self.update(W=W)
 
-            print 'W: ', (np.max(self.W), np.min(self.W))
-            print 'b: ', (np.max(self.b), np.min(self.b))
-            print 'Z: ', (np.max(self.Z), np.min(self.Z))
-            print 's: ', (np.max(self.s), np.min(self.s))
+            # TODO
+            # print 'W: ', (np.max(self.W), np.min(self.W))
+            # print 'b: ', (np.max(self.b), np.min(self.b))
+            # print 'Z: ', (np.max(self.Z), np.min(self.Z))
+            # print 's: ', (np.max(self.s), np.min(self.s))
 
-            self.save_weights(save_file)                            # Save weights & print cost
+            self.save_weights(save_file.format(epoch))                            # Save weights & print cost
 
             t1 = tm()
             C,L,K = (self.C(D), (self.lamb1 * self.L(D)), (self.lamb2 * self.K()))
@@ -562,7 +558,7 @@ class Model:
         # import ipdb; ipdb.set_trace()
         V,f = (self.V, self.f)
         C = 0.0
-        for R, O1, O2, _ in D:
+        for R, O1, O2 in D:
             c_max = max([ V(R_,O1_,O2_) * f(R_) for R_,O1_,O2_ in D
                                                 if (R_ != R) and (O1_ != O1 or O2_ != O2) ])
             c = V(R,O1,O2) * f(R)

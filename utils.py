@@ -11,11 +11,17 @@ def flatten(ls):
     return [i for sl in ls for i in sl]
 
 
+def ruid2feats(ruid):
+    obs, rc, k = ruid
+    # new_obs = frozenset([(o[0], o[1]) for o in obs])
+    new_obs = (obs[0][:2], obs[1][:2])
+    return new_obs
+
 
 # ---------------------------------------------------------------------------------------------------------
 # Image processing
 
-def square_crop(img, crop_size, x, y, w, h, reshape=True):
+def square_crop(img, crop_size, x, y, w, h, reshape=False):
     """
     Crop square image at (y,x) with dims (h,w), resize to crop_size.
 
@@ -23,45 +29,46 @@ def square_crop(img, crop_size, x, y, w, h, reshape=True):
                       or keep its proportions and crop to a square shape?
 
     """
-    ih, iw, _ = img.shape
-    if w == h:
-        x1 = x
-        x2 = x + w
-        y1 = y
-        y2 = y + h
-    elif w > h:
-        d1 = np.floor((w - h) / 2.)
-        d2 = np.ceil((w - h) / 2.)
-        if y - d1 < 0:
-            y1 = 0
-            y2 = y + h + d2 - (y - d1)
-        elif (y + h + d2) > (ih - 1):
-            y1 = y - d1 - ((y + h + d2) - (ih - 1))
-            y2 = ih - 1
-        else:
-            y1 = y - d1
-            y2 = y + h + d2
-        x1 = x
-        x2 = x + w
-    elif h > w:
-        d1 = np.floor((h - w) / 2.)
-        d2 = np.ceil((h - w) / 2.)
-        if x - d1 < 0:
-            x1 = 0
-            x2 = x + w + d2 - (x - d1)
-        elif (x + w + d2) > (iw - 1):
-            x1 = x - d1 - ((x + w + d2) - (iw - 1))
-            x2 = iw - 1
-        else:
-            x1 = x - d1
-            x2 = x + w + d2
-        y1 = y
-        y2 = y + h
-    f = lambda c: int(max(c, 0))
-    if reshape:
-        crop = img
-    else:
-        crop = img[f(y1):f(y2), f(x1):f(x2)]
+    # ih, iw, _ = img.shape
+    # if w == h:
+    #     x1 = x
+    #     x2 = x + w
+    #     y1 = y
+    #     y2 = y + h
+    # elif w > h:
+    #     d1 = np.floor((w - h) / 2.)
+    #     d2 = np.ceil((w - h) / 2.)
+    #     if y - d1 < 0:
+    #         y1 = 0
+    #         y2 = y + h + d2 - (y - d1)
+    #     elif (y + h + d2) > (ih - 1):
+    #         y1 = y - d1 - ((y + h + d2) - (ih - 1))
+    #         y2 = ih - 1
+    #     else:
+    #         y1 = y - d1
+    #         y2 = y + h + d2
+    #     x1 = x
+    #     x2 = x + w
+    # elif h > w:
+    #     d1 = np.floor((h - w) / 2.)
+    #     d2 = np.ceil((h - w) / 2.)
+    #     if x - d1 < 0:
+    #         x1 = 0
+    #         x2 = x + w + d2 - (x - d1)
+    #     elif (x + w + d2) > (iw - 1):
+    #         x1 = x - d1 - ((x + w + d2) - (iw - 1))
+    #         x2 = iw - 1
+    #     else:
+    #         x1 = x - d1
+    #         x2 = x + w + d2
+    #     y1 = y
+    #     y2 = y + h
+    # f = lambda c: int(max(c, 0))
+    # if reshape:
+    #     crop = img
+    # else:
+    #     crop = img[f(y1):f(y2), f(x1):f(x2)]
+    crop = img[y:y+h, x:x+w]
     new_img = imresize(crop, (crop_size, crop_size))
     return new_img
 
@@ -142,6 +149,8 @@ def get_data_mini(mat_data, obj_dict, rel_dict, img_dir,
     # import ipdb; ipdb.set_trace()
 
     for datum in mat_data:
+        fn = datum.filename
+
         # Skip images with no relationship data present -- there are some
         if not hasattr(datum, 'relationship'):
             #print 'skipping image {}, no relationship'.format(img_dir + datum.filename)
@@ -169,19 +178,23 @@ def get_data_mini(mat_data, obj_dict, rel_dict, img_dir,
                 k_ = vrd2mini['rel'][k]
 
                 # Get unique id (uid) for subject-verb-object triple
-                s_uid = (datum.filename, s, box_to_coords(*rel.subBox))
-                o_uid = (datum.filename, o, box_to_coords(*rel.objBox))
-                r_uid = objs2reluid_vrd(s_uid, o_uid)
+                sc = box_to_coords(*rel.subBox)
+                oc = box_to_coords(*rel.objBox)
+                rc = convert_coords(sc, oc)
+
+                s_uid = (fn, sc, i_)
+                o_uid = (fn, oc, j_)
+                r_uid = (frozenset([s_uid, o_uid]), rc, k_)
 
                 # UID format: (img_filename, label_word, bbox_coordinates)
-                s_img = square_crop(bgr, 224, *s_uid[2]) - np.load(mean_file)
-                o_img = square_crop(bgr, 224, *o_uid[2]) - np.load(mean_file)
-                r_img = square_crop(bgr, 224, *r_uid[2]) - np.load(mean_file)
+                s_img = square_crop(bgr, 224, *sc) - np.load(mean_file)
+                o_img = square_crop(bgr, 224, *oc) - np.load(mean_file)
+                r_img = square_crop(bgr, 224, *rc) - np.load(mean_file)
 
                 # One-hot label vectors
                 s_label = np.zeros((n_mini));  s_label[i_] = 1
                 o_label = np.zeros((n_mini));  o_label[j_] = 1
-                v_label = np.zeros((k_mini));   v_label[k_] = 1
+                v_label = np.zeros((k_mini));  v_label[k_] = 1
 
                 # Data format: (img, label, uid)
                 obj_data.append((s_img, s_label, s_uid))
@@ -190,6 +203,45 @@ def get_data_mini(mat_data, obj_dict, rel_dict, img_dir,
 
     return {'obj': list(obj_data), 'rel': list(rel_data)}
 
+
+def get_trips_mini(mat_data, obj_dict, rel_dict,
+                   mini_file='/home/eric/data/mini/vrd2mini.npy'):
+    data = []
+    vrd2mini = np.load(mini_file).item()
+
+    for datum in mat_data:
+        if not hasattr(datum, 'relationship'):
+            continue
+
+        img_rels = datum.relationship
+        if not hasattr(img_rels, '__getitem__'):
+            if not all(i in dir(img_rels) for i in ['objBox', 'phrase', 'subBox']):
+                print 'skipping relation, dir contains:', [_ for _ in dir(img_rels) if '_' not in _]
+                continue
+            img_rels = [img_rels]
+
+        for rel in img_rels:
+            s,v,o = rel.phrase
+            i,j,k = (obj_dict[s], obj_dict[o], rel_dict[v])
+            fn = datum.filename
+
+            if (i in vrd2mini['obj']) and (j in vrd2mini['obj']) and (k in vrd2mini['rel']):
+                i_ = vrd2mini['obj'][i]
+                j_ = vrd2mini['obj'][j]
+                k_ = vrd2mini['rel'][k]
+
+                sc = box_to_coords(*rel.subBox)
+                oc = box_to_coords(*rel.objBox)
+                rc = convert_coords(sc, oc)
+
+                s_uid = (fn, sc, i_)
+                o_uid = (fn, oc, j_)
+                r_uid = (frozenset([s_uid, o_uid]), rc, k_)
+
+                R = (i_, j_, k_)
+                data.append((R, s_uid, o_uid))
+
+    return data
 
 
 
@@ -343,7 +395,14 @@ def group_triplets(D):
     for d in D:
         fname = d[1][0]
         E[fname].append(d)
+
+    E = {k:v for k,v in E.items()}
+    for fn in E.keys():
+        if len(E[fn]) < 2:
+            del E[fn]
+            print 'removed ' + fn
     return E
+
 
 
 def mat_to_triplets_mini(mat_data, word2idx,
@@ -384,7 +443,7 @@ def mat_to_triplets_mini(mat_data, word2idx,
                 obj_uid = (fname, oc, j)
                 rel_uid = (fname, convert_coords(sc, oc), k)
 
-                D.append((R, sub_uid, obj_uid, rel_uid))
+                D.append((R, sub_uid, obj_uid))
     return D
 
 

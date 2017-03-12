@@ -165,7 +165,5 @@ if __name__ == '__main__':
 
                         print('Step {}:{}-{}-{}\t| train: {}\ttest: {}\tsimple: {}'.format(
                                     i, e, db, b, test_acc['train'], test_acc['test'], acc_  ))
-
-                    if i % FLAGS.save_freq == 0:
-                        net.save_npy(sess, save_path=FLAGS.save_dir + 'weights_{}.npy'.format(e))
                     i += 1
+                net.save_npy(sess, save_path=FLAGS.save_dir + 'weights_{}.npy'.format(e))

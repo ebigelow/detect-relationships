@@ -41,13 +41,13 @@ if __name__ == '__main__':
     with tf.Session() as sess:
         sess.run(init_op)
 
-        for db, train_batch in tqdm(enumerate(train_batcher)):
-            for b, (images, labels, uids) in tqdm(enumerate(train_batch)):
+        for train_batch in train_batcher:
+            for images, labels, uids in train_batch:
                 b_fc7, b_prob, b_acc = sess.run([net.fc7, net.prob, accuracy],
                                                 feed_dict={images_var: images, ground_truth: labels})
                 for q in range(len(uids)):
                     D = {}
-                    if FLAGS.which_net == 'relnet':
+                    if FLAGS.which_net == 'rel':
                         D['fc7']   = b_fc7[q]
                     D['prob']  = b_prob[q]
                     D['label'] = labels[q].argmax()

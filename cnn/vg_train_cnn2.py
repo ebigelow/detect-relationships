@@ -1,7 +1,7 @@
 import tensorflow as tf
 import numpy as np
 import sys; sys.path.append('..')
-from utils import load_sg_batcher
+from utils import load_sg_batcher, load_vrd_batcher
 from vgg16 import CustomVgg16
 from tqdm import trange, tqdm
 
@@ -121,12 +121,11 @@ if __name__ == '__main__':
 
                     if i % FLAGS.test_freq == 0:
 
-                        test_acc = {'train': [], 'test': [0.0]}
+                        test_acc = {'train': [], 'test': []}
 
                         test1 = load_sg_batcher(FLAGS.json_dir, FLAGS.json_dir+'by-id/',
                             label_dict, img_mean, 0, -1, FLAGS.batch_size, FLAGS.data_epochs,
                             FLAGS.which_net, FLAGS.output_size, FLAGS.img_dir)
-                        # test2 = get_data_batcher(FLAGS.test_mat,  FLAGS.test_imgs, FLAGS.data_epochs)
 
                         Z = 5
 
@@ -139,20 +138,24 @@ if __name__ == '__main__':
 
                         train_writer.add_summary(summary, i)
 
-                        # # Sample Z data from test set
-                        # for s in rn:
-                        #     if s in samples:
-                        #         test_batch = test2.next()
-                        #         for images, labels, _ in test_batch:
-                        #             test_feed = {ground_truth : labels,  images_var : images}
-                        #             summary, acc = sess.run([merged, accuracy], feed_dict=test_feed)
-                        #             test_acc['test'].append(acc)
-                        #             break
-                        #     else:
-                        #         continue
-                        # test_writer.add_summary(summary, i)
-                        #
-                        # test_acc['test']  = np.mean(test_acc['test'])
+
+
+                        data_dir = '/home/eric/data/vrd/'
+                        test2 = load_vrd_batcher(data_dir+'mat/annotation_test.mat',
+                            data_dir+'mat/objectListN.mat', data_dir+'mat/predicate.mat',
+                            FLAGS.batch_size, FLAGS.data_epochs, FLAGS.which_net,
+                            data_dir+'images/test/', FLAGS.mean_file )
+
+                        # Sample Z data from test set
+                        for s in range(Z):
+                            test_batch = test2.next()
+                            for images, labels, _ in test_batch:
+                                test_feed = {ground_truth : labels,  images_var : images}
+                                summary, acc = sess.run([merged, accuracy], feed_dict=test_feed)
+                                test_acc['test'].append(acc)
+                        test_writer.add_summary(summary, i)
+
+                        test_acc['test']  = np.mean(test_acc['test'])
                         test_acc['train'] = np.mean(test_acc['train'])
 
                         print('Step {}:{}-{}-{}\t | train: {}\ttest: {}'.format(
