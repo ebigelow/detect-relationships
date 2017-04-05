@@ -5,4 +5,5 @@
 *.png
 
 data
-scripts/ipynb/.ipynb_checkpoints
+scripts/ipynb
+scripts/_ipynb
