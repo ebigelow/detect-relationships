@@ -10,6 +10,9 @@ from utils import convert_coords, ruid2feats
 def cap_weight(M, cap=1.0):
     m = abs(M).max()
     return (M / m) if (m > cap) else M
+    #c = abs(M) >= cap
+    #M[c] /= abs(M[c])
+    #return M
 
 
 def flatten(ls):
@@ -104,7 +107,7 @@ class Model:
         data_dict = np.load(filename).item()
         self.update(W=data_dict['W'], b=data_dict['b'],
                     Z=data_dict['Z'], s=data_dict['s'])
-        
+
         self.__dict__.update(data_dict['params'])
         print 'numpy file loaded from: {}'.format(filename)
 

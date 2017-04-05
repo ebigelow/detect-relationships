@@ -51,11 +51,18 @@ if __name__ == '__main__':
     obj_dir = mini + 'models/cnn2/obj_vrd1/out/'
     rel_dir = mini + 'models/cnn2/rel_vrd1/out/'
 
-    vrd_on_vrd = mini + 'models/embed/vrd2/'
-    vrd_on_vg  = mini + 'models/embed/vrd-on-vg2/'
-    weights_vrd = vrd_on_vrd + 'weights_0.npy'
-    weights_vg  = vrd_on_vg  + 'weights_2.npy'
+    vrd_on_vrd = mini + 'models/embed/vg-ablate2/'
+    # vrd_on_vg  = mini + 'models/embed/vrd-on-vg4/'
+    # vrd_on_vrd = mini + 'models/embed/vrd5/'
+    # vrd_on_vrd = mini + 'models/embed/vrd4/'
+    # vrd_on_vg  = mini + 'models/embed/vrd-on-vg2/'
 
+
+    weights_vrd = vrd_on_vrd + 'weights_3.npy'
+    # weights_vg = vrd_on_vg + 'weights_5.npy'
+    # weights_vrd = vrd_on_vrd + 'weights_BEST.npy'
+    # weights_vrd = vrd_on_vrd + 'weights_4.npy'
+    # weights_vg  = vrd_on_vg  + 'weights_2.npy'
 
     E = (
         # (weight_file, save_file, obj_prob_file, rel_feat_file, D(data))
@@ -63,10 +70,10 @@ if __name__ == '__main__':
         (weights_vrd, vrd_on_vrd+'out/vrd_test',  obj_dir+'vrd_test2.npy',  rel_dir+'vrd_test2.npy',  mini+'vrd_test2_.npy'  ),
         (weights_vrd, vrd_on_vrd+'out/vg_train',  obj_dir+'vg_train.npy',   rel_dir+'vg_train.npy',   mini+'vg_train_.npy'   ),
         (weights_vrd, vrd_on_vrd+'out/vg_test',   obj_dir+'vg_test.npy',    rel_dir+'vg_test.npy',    mini+'vg_test_.npy'    ),
-        (weights_vg,  vrd_on_vg+'out/vrd_train',  obj_dir+'vrd_train2.npy', rel_dir+'vrd_train2.npy', mini+'vrd_train2_.npy' ),
-        (weights_vg,  vrd_on_vg+'out/vrd_test',   obj_dir+'vrd_test2.npy',  rel_dir+'vrd_test2.npy',  mini+'vrd_test2_.npy'  ),
-        (weights_vg,  vrd_on_vg+'out/vg_train',   obj_dir+'vg_train.npy',   rel_dir+'vg_train.npy',   mini+'vg_train_.npy'   ),
-        (weights_vg,  vrd_on_vg+'out/vg_test',    obj_dir+'vg_test.npy',    rel_dir+'vg_test.npy',    mini+'vg_test_.npy'    ),
+        # (weights_vg,  vrd_on_vg+'out/vrd_train',  obj_dir+'vrd_train2.npy', rel_dir+'vrd_train2.npy', mini+'vrd_train2_.npy' ),
+        # (weights_vg,  vrd_on_vg+'out/vrd_test',   obj_dir+'vrd_test2.npy',  rel_dir+'vrd_test2.npy',  mini+'vrd_test2_.npy'  ),
+        # (weights_vg,  vrd_on_vg+'out/vg_train',   obj_dir+'vg_train.npy',   rel_dir+'vg_train.npy',   mini+'vg_train_.npy'   ),
+        # (weights_vg,  vrd_on_vg+'out/vg_test',    obj_dir+'vg_test.npy',    rel_dir+'vg_test.npy',    mini+'vg_test_.npy'    ),
     )
 
 
@@ -106,5 +113,5 @@ if __name__ == '__main__':
             print 'Recall @ {}: {}'.format(topk, accuracy)
 
         # Save top 20 predictions to file
-        # predicts, _ = predict(M, D, 20)
-        # np.save(save_file, predicts)
+        predicts, _ = predict(M, D, 20)
+        np.save(save_file, predicts)
